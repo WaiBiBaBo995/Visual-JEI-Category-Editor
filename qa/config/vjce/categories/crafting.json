@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "vjce:qa/crafting",
+  "target": "minecraft:crafting",
+  "title": "VJCE QA crafting",
+  "width": 176,
+  "height": 90,
+  "recipes": [
+    {
+      "id": "vjce:qa_crafting",
+      "duration": 200,
+      "slots": [
+        {
+          "name": "input",
+          "role": "INPUT",
+          "x": 20,
+          "y": 20,
+          "ingredients": [
+            {
+              "item": "minecraft:iron_ingot",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "name": "output",
+          "role": "OUTPUT",
+          "x": 130,
+          "y": 20,
+          "ingredients": [
+            {
+              "item": "minecraft:gold_ingot",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vjce:hidden_stick",
+      "source": "minecraft:stick",
+      "hidden": true,
+      "overrideIngredients": false,
+      "slots": []
+    }
+  ]
+}

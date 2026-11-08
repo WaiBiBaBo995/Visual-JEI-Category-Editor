@@ -1,0 +1,47 @@
+// Optional filming bootstrap: avoid probing unrelated repositories for these pinned mods.
+allprojects {
+    afterEvaluate {
+        def tools = rootProject.file('build/video-tools')
+        def localJars = [
+            'com.lowdragmc.ldlib2': new File(tools, 'ldlib2-complete.jar'),
+            'mezz.jei': new File(tools, 'jei-19.70.jar'),
+            'mekanism': new File(tools, 'Mekanism.jar')
+        ]
+        if (providers.gradleProperty('videoCreateJar').isPresent()) {
+            def createJar = file(providers.gradleProperty('videoCreateJar').get())
+            if (!createJar.isFile()) throw new GradleException('videoCreateJar is missing')
+            localJars['com.simibubi.create'] = createJar
+        }
+        configurations.configureEach { configuration ->
+            configuration.withDependencies { entries ->
+                def exactConfig = new File(tools, 'userdev-config.json')
+                if (configuration.name == 'neoForgeConfigOnly' && exactConfig.isFile()) {
+                    def originalConfig = entries.findAll { it.group == 'net.neoforged' && it.name == 'neoforge' && it.version == '21.1.262' }.toList()
+                    originalConfig.each { entries.remove(it) }
+                    if (!originalConfig.isEmpty()) entries.add(project.dependencies.create(project.files(exactConfig)))
+                }
+                def originals = entries.findAll { dependency -> localJars.containsKey(dependency.group) && localJars[dependency.group].isFile() }.toList()
+                originals.each { dependency ->
+                    entries.remove(dependency)
+                    entries.add(project.dependencies.create(project.files(localJars[dependency.group])))
+                }
+            }
+        }
+        def nested = new File(tools, 'ldlib-compile')
+        if (nested.isDirectory()) dependencies { compileOnly fileTree(dir: nested, include: '*.jar') }
+        repositories {
+            exclusiveContent {
+                forRepository { maven { name = 'videoLDLib'; url = uri('https://maven.firstdark.dev/snapshots') } }
+                filter { includeGroup('com.lowdragmc.ldlib2') }
+            }
+            exclusiveContent {
+                forRepository { maven { name = 'videoJEI'; url = uri('https://maven.blamejared.com') } }
+                filter { includeGroup('mezz.jei') }
+            }
+            exclusiveContent {
+                forRepository { maven { name = 'videoMekanism'; url = uri('https://modmaven.dev') } }
+                filter { includeGroup('mekanism') }
+            }
+        }
+    }
+}

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "id": "vjce:example",
+  "title": "Visual Recipe Example",
+  "icon": "minecraft:crafting_table",
+  "width": 176,
+  "height": 110,
+  "fields": [
+    {
+      "key": "energy",
+      "label": "Energy",
+      "unit": "FE",
+      "initial": 700,
+      "maximum": 1000,
+      "color": -11094334
+    }
+  ],
+  "bindings": [
+    {
+      "element": "bar_energy",
+      "property": "progress",
+      "expression": "clamp(energy / 1000, 0, 1)"
+    }
+  ],
+  "recipes": [
+    {
+      "id": "vjce:qa_example",
+      "duration": 200,
+      "slots": [
+        {
+          "name": "input",
+          "role": "INPUT",
+          "x": 20,
+          "y": 20,
+          "ingredients": [
+            {
+              "item": "minecraft:iron_ingot",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "name": "output",
+          "role": "OUTPUT",
+          "x": 130,
+          "y": 20,
+          "ingredients": [
+            {
+              "item": "minecraft:gold_ingot",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

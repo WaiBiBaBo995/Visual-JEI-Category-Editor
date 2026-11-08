@@ -1,0 +1,86 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+group = 'com.pureneko.vjce'
+version = mod_version
+base { archivesName = 'vjce-1.21.1' }
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.firstdark.dev/snapshots' }
+    maven { url = 'https://maven.blamejared.com' }
+    maven { url = 'https://modmaven.dev' }
+    maven { url = 'https://maven.createmod.net' }
+    maven { url = 'https://maven.ithundxr.dev/snapshots' }
+}
+neoForge {
+    version = neo_version
+    runs {
+        client {
+            client()
+            if (providers.gradleProperty('videoDemo').isPresent()) {
+                if (providers.gradleProperty('uiTest').isPresent()) throw new GradleException('Use videoDemo or uiTest, not both')
+                def videoPhase = providers.gradleProperty('videoDemo').get()
+                if (!(videoPhase in ['capture', 'showcase', 'world', 'showcase-full', 'authoring', 'native', 'resources', 'snapshot', 'create', 'publish'])) throw new GradleException('Unknown videoDemo phase')
+                gameDirectory = file('video-production/game')
+                systemProperty 'ldlib2.uitest.run', videoPhase in ['capture','showcase','world','showcase-full'] ? 'vjce_video' : 'vjce_video_full'
+                systemProperty 'ldlib2.uitest.out', providers.gradleProperty('videoOut').getOrElse(layout.buildDirectory.dir('video-takes/' + videoPhase).get().asFile.absolutePath)
+                systemProperty 'ldlib2.uitest.window', '1920x1080'
+                systemProperty 'ldlib2.uitest.guiScale', '2'
+                systemProperty 'ldlib2.uitest.inputMode', 'SYNTHETIC'
+                systemProperty 'ldlib2.uitest.headless', 'false'
+                systemProperty 'ldlib2.uitest.keepOpen', 'false'
+                systemProperty 'vjce.video.phase', videoPhase
+            }
+            if (providers.gradleProperty('uiTest').isPresent()) {
+                systemProperty 'ldlib2.uitest.run', providers.gradleProperty('uiTest').get().trim() ?: 'group:vjce'
+                systemProperty 'ldlib2.uitest.out', layout.buildDirectory.dir('ui-test').get().asFile.absolutePath
+                systemProperty 'ldlib2.uitest.window', '1600x900'
+                systemProperty 'ldlib2.uitest.guiScale', '2'
+                systemProperty 'ldlib2.uitest.inputMode', 'SYNTHETIC'
+                systemProperty 'ldlib2.uitest.headless', 'true'
+                systemProperty 'vjce.compatTest', 'true'
+            }
+        }
+        configureEach { if (!providers.gradleProperty('videoDemo').isPresent()) gameDirectory = file('run') }
+    }
+    mods {
+        vjce { sourceSet(sourceSets.main) }
+    }
+}
+dependencies {
+    implementation "com.lowdragmc.ldlib2:ldlib2-neoforge-1.21.1:${ldlib2_version}:all"
+    implementation "mezz.jei:jei-1.21.1-neoforge:${jei_version}"
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.google.code.gson:gson:2.11.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+if (providers.gradleProperty('withMekanism').orNull == 'true') {
+    dependencies { runtimeOnly "mekanism:Mekanism:${mekanism_version}" }
+}
+if (providers.gradleProperty('withCreate').orNull == 'true') {
+    dependencies { runtimeOnly 'com.simibubi.create:create-1.21.1:6.0.11-320' }
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.withType(Test).configureEach { useJUnitPlatform() }
+tasks.named('jar') {
+    manifest { attributes('Implementation-Version': project.version) }
+}
+tasks.named('processResources') {
+    from(rootProject.file('LICENSE')) { into('META-INF') }
+}
+tasks.register('prepareUiFixtures', Copy) {
+    from('qa')
+    from('examples')
+    into('run')
+}
+if (providers.gradleProperty('uiTest').isPresent()) {
+    tasks.named('runClient') { dependsOn('prepareUiFixtures') }
+}

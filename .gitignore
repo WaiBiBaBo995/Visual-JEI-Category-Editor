@@ -1,0 +1,22 @@
+.gradle/
+.gradle-home/
+build/
+run/
+.reference/
+.idea/
+*.iml
+*.log
+out/
+dist/
+
+# Local media, game instances and generated assets
+/outputs/
+/video-production/
+/exports/
+__pycache__/
+*.pyc
+
+# Publish only the guide and screenshots from docs
+/docs/*
+!/docs/GUIDE.zh-CN.md
+!/docs/screenshots/

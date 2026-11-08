@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "vjce:qa/blasting",
+  "target": "minecraft:blasting",
+  "title": "VJCE QA blasting",
+  "width": 176,
+  "height": 90,
+  "recipes": [
+    {
+      "id": "vjce:qa_blasting",
+      "duration": 200,
+      "slots": [
+        {
+          "name": "input",
+          "role": "INPUT",
+          "x": 20,
+          "y": 20,
+          "ingredients": [
+            {
+              "item": "minecraft:iron_ingot",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "name": "output",
+          "role": "OUTPUT",
+          "x": 130,
+          "y": 20,
+          "ingredients": [
+            {
+              "item": "minecraft:gold_ingot",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

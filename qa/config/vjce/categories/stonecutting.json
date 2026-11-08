@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "vjce:qa/stonecutting",
+  "target": "minecraft:stonecutting",
+  "title": "VJCE QA stonecutting",
+  "width": 176,
+  "height": 90,
+  "recipes": [
+    {
+      "id": "vjce:qa_stonecutting",
+      "duration": 200,
+      "slots": [
+        {
+          "name": "input",
+          "role": "INPUT",
+          "x": 20,
+          "y": 20,
+          "ingredients": [
+            {
+              "item": "minecraft:iron_ingot",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "name": "output",
+          "role": "OUTPUT",
+          "x": 130,
+          "y": 20,
+          "ingredients": [
+            {
+              "item": "minecraft:gold_ingot",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

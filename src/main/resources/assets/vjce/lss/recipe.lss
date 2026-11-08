@@ -1,0 +1,18 @@
+// Applied only to a JEI recipe template, never to the surrounding editor.
+.vjce-ingredient-slot {
+  background: built-in(ui-mc:RECT_1);
+}
+
+.__progress-bar_bar__ {
+  background: built-in(ui-mc:RECT_3) color(#80c85b);
+}
+
+label:host {
+  text-color: #404040;
+  text-shadow: false;
+}
+
+progress-bar:host .__progress-bar_label__ {
+  text-color: #ffffff;
+  text-shadow: true;
+}
