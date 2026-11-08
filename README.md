@@ -114,7 +114,7 @@ MBD2 是编辑器交互的参考项目，无需安装。
 | `Esc` | 取消当前拖动；未拖动时退出绿色模式 |
 
 移动与拉伸带有对齐参考线。更多手势、控件绑定、表达式、文件格式及场景限制见
-[中文进阶指南](docs/GUIDE.zh-CN.md)。
+[双语进阶指南](docs/GUIDE.zh-CN.md)。
 
 ### 导出与分享
 
@@ -235,7 +235,7 @@ the older combinations have not received new in-game validation.
 Compile dependencies remain pinned. Removing upper bounds does not verify every later release.
 LDLib2 `2.2.44` provides required editor APIs, so its minimum is retained.
 The inspected official JEI `19.64.0.455` artifact also has conflicting Minecraft metadata;
-see the [dependency metadata notes](docs/GUIDE.zh-CN.md#依赖元数据说明) (Chinese).
+see the [dependency metadata notes](docs/GUIDE.zh-CN.md#dependency-metadata-notes).
 
 **Optional integrations:** Mekanism `1.21.1-10.7.19.85` and Create `6.0.11-320`
 have recorded validation runs. Create animation presets require Create and its dependencies;
@@ -273,8 +273,8 @@ The example provides JEI display data; it does not register a crafting recipe.
 | `Alt` + left-drag inside the green frame | Rotate around the center; add `Shift` for 15° snapping |
 | `Esc` | Cancel the current drag, or leave transform mode when idle |
 
-Moving and resizing include alignment guides. The [advanced guide](docs/GUIDE.zh-CN.md)
-covers more gestures, bindings, expressions, file formats and scene limits (Chinese).
+Moving and resizing include alignment guides. The [advanced guide](docs/GUIDE.zh-CN.md#english)
+covers more gestures, bindings, expressions, file formats and scene limits.
 
 ### Export and share
 
@@ -332,8 +332,8 @@ sh ./gradlew runClient
 Mod and sources JARs are written to `build/libs/`. The build version is set by `mod_version`
 in `gradle.properties`; mod metadata is in `src/main/resources/META-INF/neoforge.mods.toml`.
 UI validation starts an isolated test world and writes reports and screenshots to `build/ui-test/`.
-See the [advanced guide](docs/GUIDE.zh-CN.md#构建与验证) for build details
-and optional mod validation commands (Chinese).
+See the [advanced guide](docs/GUIDE.zh-CN.md#building-and-validation) for build details
+and optional mod validation commands.
 
 ---
 
