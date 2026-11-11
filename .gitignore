@@ -13,6 +13,7 @@ dist/
 /outputs/
 /video-production/
 /exports/
+/qa/
 __pycache__/
 *.pyc
 
