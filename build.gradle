@@ -1,86 +1,128 @@
-plugins {
-    id 'java-library'
-    id 'net.neoforged.moddev' version '2.0.148'
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url = 'https://maven.minecraftforge.net/releases'; content { includeGroupByRegex 'net\\.minecraftforge.*' } }
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/'; content { includeGroup 'org.spongepowered' } }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.54'
+        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
+    }
 }
-
+repositories.whenObjectAdded { repo ->
+    if (repo instanceof MavenArtifactRepository && repo.url.toString().replaceAll('/+$', '') == 'https://maven.minecraftforge.net') repo.url = uri('https://maven.minecraftforge.net/releases')
+}
+apply plugin: 'java-library'
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'org.spongepowered.mixin'
 group = 'com.pureneko.vjce'
 version = mod_version
-base { archivesName = 'vjce-1.21.1' }
+base { archivesName = 'vjce-1.20.1-forge' }
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
     withSourcesJar()
 }
 repositories {
+    maven { url = uri("${gradle.gradleUserHomeDir}/caches/forge_gradle/maven_downloader"); metadataSources { mavenPom(); artifact() } }
     mavenCentral()
-    maven { url = 'https://maven.firstdark.dev/snapshots' }
-    maven { url = 'https://maven.blamejared.com' }
-    maven { url = 'https://modmaven.dev' }
+    maven { url = 'https://maven.minecraftforge.net/releases' }
+    maven { url = 'https://bmclapi2.bangbang93.com/maven' }
+    maven { url = 'https://libraries.minecraft.net' }
+    maven { url = 'https://maven.firstdark.dev/snapshots'; content { includeGroup 'com.lowdragmc.ldlib' } }
+    maven { url = 'https://maven.blamejared.com'; content { includeGroup 'mezz.jei' } }
     maven { url = 'https://maven.createmod.net' }
-    maven { url = 'https://maven.ithundxr.dev/snapshots' }
+    maven { url = 'https://maven.tterrag.com'; content { includeGroup 'com.tterrag.registrate'; includeGroup 'com.simibubi.create' } }
+    maven { url = 'https://modmaven.dev'; content { includeGroup 'mekanism' } }
+    maven { url = uri("${gradle.gradleUserHomeDir}/caches/vjce-audit-maven"); content { includeGroup 'maven.modrinth' } }
+    maven { url = 'https://api.modrinth.com/maven'; content { includeGroup 'maven.modrinth' } }
 }
-neoForge {
-    version = neo_version
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    copyIdeResources = true
     runs {
         client {
-            client()
-            if (providers.gradleProperty('videoDemo').isPresent()) {
-                if (providers.gradleProperty('uiTest').isPresent()) throw new GradleException('Use videoDemo or uiTest, not both')
-                def videoPhase = providers.gradleProperty('videoDemo').get()
-                if (!(videoPhase in ['capture', 'showcase', 'world', 'showcase-full', 'authoring', 'native', 'resources', 'snapshot', 'create', 'publish'])) throw new GradleException('Unknown videoDemo phase')
-                gameDirectory = file('video-production/game')
-                systemProperty 'ldlib2.uitest.run', videoPhase in ['capture','showcase','world','showcase-full'] ? 'vjce_video' : 'vjce_video_full'
-                systemProperty 'ldlib2.uitest.out', providers.gradleProperty('videoOut').getOrElse(layout.buildDirectory.dir('video-takes/' + videoPhase).get().asFile.absolutePath)
-                systemProperty 'ldlib2.uitest.window', '1920x1080'
-                systemProperty 'ldlib2.uitest.guiScale', '2'
-                systemProperty 'ldlib2.uitest.inputMode', 'SYNTHETIC'
-                systemProperty 'ldlib2.uitest.headless', 'false'
-                systemProperty 'ldlib2.uitest.keepOpen', 'false'
-                systemProperty 'vjce.video.phase', videoPhase
-            }
+            workingDirectory project.file('run')
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             if (providers.gradleProperty('uiTest').isPresent()) {
-                systemProperty 'ldlib2.uitest.run', providers.gradleProperty('uiTest').get().trim() ?: 'group:vjce'
-                systemProperty 'ldlib2.uitest.out', layout.buildDirectory.dir('ui-test').get().asFile.absolutePath
-                systemProperty 'ldlib2.uitest.window', '1600x900'
-                systemProperty 'ldlib2.uitest.guiScale', '2'
-                systemProperty 'ldlib2.uitest.inputMode', 'SYNTHETIC'
-                systemProperty 'ldlib2.uitest.headless', 'true'
-                systemProperty 'vjce.compatTest', 'true'
+                args '--width', '1600', '--height', '900'
+                property 'vjce.uitest', providers.gradleProperty('uiTest').get().trim() ?: 'all'
+                property 'vjce.uitest.out', layout.buildDirectory.dir('ui-test').get().asFile.absolutePath
             }
+            mods { vjce { source sourceSets.main } }
         }
-        configureEach { if (!providers.gradleProperty('videoDemo').isPresent()) gameDirectory = file('run') }
-    }
-    mods {
-        vjce { sourceSet(sourceSets.main) }
+        server {
+            workingDirectory project.file('run-server')
+            args '--nogui'
+            mods { vjce { source sourceSets.main } }
+        }
     }
 }
+mixin {
+    add sourceSets.main, 'vjce.refmap.json'
+    config 'vjce.mixins.json'
+}
 dependencies {
-    implementation "com.lowdragmc.ldlib2:ldlib2-neoforge-1.21.1:${ldlib2_version}:all"
-    implementation "mezz.jei:jei-1.21.1-neoforge:${jei_version}"
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation(fg.deobf("com.lowdragmc.ldlib:ldlib-forge-1.20.1:${ldlib_version}")) { transitive = false }
+    implementation fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
-    testImplementation 'com.google.code.gson:gson:2.11.0'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 if (providers.gradleProperty('withMekanism').orNull == 'true') {
-    dependencies { runtimeOnly "mekanism:Mekanism:${mekanism_version}" }
+    dependencies { runtimeOnly fg.deobf("mekanism:Mekanism:${mekanism_version}") }
+}
+if (providers.gradleProperty('withAe2').orNull == 'true') {
+    dependencies {
+        runtimeOnly(fg.deobf('maven.modrinth:ae2:15.4.12')) { transitive = false }
+        runtimeOnly(fg.deobf('maven.modrinth:guideme:20.1.15')) { transitive = false }
+    }
 }
 if (providers.gradleProperty('withCreate').orNull == 'true') {
-    dependencies { runtimeOnly 'com.simibubi.create:create-1.21.1:6.0.11-320' }
+    dependencies {
+        runtimeOnly(fg.deobf("com.simibubi.create:create-1.20.1:${create_version}:all")) { transitive = false }
+        runtimeOnly fg.deobf('dev.engine-room.flywheel:flywheel-forge-1.20.1:1.0.4')
+        runtimeOnly fg.deobf('net.createmod.ponder:Ponder-Forge-1.20.1:1.0.80')
+    }
 }
-
-tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xmaxerrs', '1000']
+}
 tasks.withType(Test).configureEach { useJUnitPlatform() }
 tasks.named('jar') {
-    manifest { attributes('Implementation-Version': project.version) }
+    manifest { attributes('Implementation-Version': project.version, 'MixinConfigs': 'vjce.mixins.json') }
+    finalizedBy 'reobfJar'
 }
 tasks.named('processResources') {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') { expand version: project.version }
     from(rootProject.file('LICENSE')) { into('META-INF') }
 }
-tasks.register('prepareUiFixtures', Copy) {
-    from('qa')
-    from('examples')
-    into('run')
+
+repositories.configureEach {
+    if (it instanceof MavenArtifactRepository && it.url.toString().replaceAll('/+$', '') == 'https://maven.minecraftforge.net') {
+        it.url = uri('https://maven.minecraftforge.net/releases')
+    }
 }
+
 if (providers.gradleProperty('uiTest').isPresent()) {
-    tasks.named('runClient') { dependsOn('prepareUiFixtures') }
+    tasks.matching { it.name == 'runClient' }.configureEach {
+        doFirst {
+            layout.buildDirectory.file('ui-test/report.json').get().asFile.delete()
+            layout.buildDirectory.file('ui-test/exit-code.txt').get().asFile.delete()
+        }
+        doLast {
+            def reportFile = layout.buildDirectory.file('ui-test/report.json').get().asFile
+            if (!reportFile.isFile() || !new groovy.json.JsonSlurper().parse(reportFile).passed) {
+                throw new GradleException('VJCE client validation failed; inspect build/ui-test/report.json')
+            }
+        }
+    }
 }
+
+// Forward console commands to the development dedicated server.
+tasks.matching { it.name == "runServer" }.configureEach { standardInput = System.in }

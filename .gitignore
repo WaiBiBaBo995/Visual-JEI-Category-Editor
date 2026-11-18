@@ -21,3 +21,5 @@ __pycache__/
 /docs/*
 !/docs/GUIDE.zh-CN.md
 !/docs/screenshots/
+
+/run-server/

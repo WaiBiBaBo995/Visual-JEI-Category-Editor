@@ -1,6 +1,6 @@
 package com.pureneko.vjce.client;
 
-import com.lowdragmc.lowdraglib2.client.scene.WorldSceneRenderer;
+import com.lowdragmc.lowdraglib.client.scene.WorldSceneRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.pureneko.vjce.VisualJeiCategoryEditor;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -35,7 +35,7 @@ public final class SceneRenderGuard {
             try (var state = new SceneRenderState()) {
                 // A renderer may push and then throw: do not leave LDLib's shared stack unbalanced.
                 var isolated = new PoseStack();
-                isolated.mulPose(pose.last().pose());
+                isolated.mulPoseMatrix(pose.last().pose());
                 RuntimeException renderFailure = null;
                 try { draw.accept(isolated); }
                 catch (RuntimeException failure) { renderFailure = failure; throw failure; }

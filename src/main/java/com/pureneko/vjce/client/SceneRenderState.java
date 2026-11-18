@@ -1,6 +1,6 @@
 package com.pureneko.vjce.client;
 
-import com.lowdragmc.lowdraglib2.client.RenderTargetScope;
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import com.pureneko.vjce.mixin.ShaderLightsAccess;
@@ -9,8 +9,8 @@ import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 
-/** Restore the scene's drawing state even if a third-party block entity renderer throws. */
-final class SceneRenderState implements AutoCloseable {
+/** Isolate third-party scene and JEI drawing from the surrounding editor. */
+public final class SceneRenderState implements AutoCloseable {
     private final RenderTargetScope target = RenderTargetScope.capture();
     private final Matrix4f projection = new Matrix4f(RenderSystem.getProjectionMatrix());
     private final Matrix4f modelView = new Matrix4f(RenderSystem.getModelViewMatrix());
@@ -25,12 +25,12 @@ final class SceneRenderState implements AutoCloseable {
     private final int srcRGB = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB), dstRGB = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB),
             srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA), dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
     private final int[] box = new int[4];
-    SceneRenderState() { GL11.glGetIntegerv(GL11.GL_SCISSOR_BOX, box); }
+    public SceneRenderState() { GL11.glGetIntegerv(GL11.GL_SCISSOR_BOX, box); }
     void restoreTarget() { target.close(); }
     @Override public void close() {
         target.close();
         RenderSystem.setProjectionMatrix(projection, sorting);
-        RenderSystem.getModelViewStack().set(modelView); RenderSystem.applyModelViewMatrix();
+        RenderSystem.getModelViewStack().last().pose().set(modelView); RenderSystem.applyModelViewMatrix();
         RenderSystem.setShaderLights(light0, light1);
         RenderSystem.setShaderColor(color[0], color[1], color[2], color[3]);
         // Force transitions because some mod renderers bypass GlStateManager's state cache.

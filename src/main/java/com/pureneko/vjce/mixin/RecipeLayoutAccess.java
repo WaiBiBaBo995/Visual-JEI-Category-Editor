@@ -14,7 +14,6 @@ import java.util.*;
 /** Internal layout access; target signatures checked against JEI 19.64 and 19.70. */
 @Mixin(targets = "mezz.jei.library.gui.recipes.RecipeLayout", remap = false)
 public interface RecipeLayoutAccess {
-    @Invoker("ensureRecipeExtrasAreCreated") void vjce$createExtras();
     @Accessor("allWidgets") List<IRecipeWidget> vjce$widgets();
     @Accessor("recipeCategorySlots") List<IRecipeSlotDrawable> vjce$slots();
     @Accessor("drawables") List<IDrawable> vjce$drawables();

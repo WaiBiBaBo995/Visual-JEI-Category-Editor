@@ -1,6 +1,6 @@
 package com.pureneko.vjce.integration;
 
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
+import com.pureneko.vjce.client.canvas.CanvasElement;
 import com.pureneko.vjce.client.NativePartElement;
 import com.pureneko.vjce.client.RecipeUI;
 import com.pureneko.vjce.data.CategoryDocument;
@@ -14,13 +14,13 @@ public final class SlotReplay implements InvocationHandler {
     private static final Set<String> INGREDIENT_CALLS = Set.of("addIngredients", "addIngredient", "addIngredientsUnsafe", "addTypedIngredients", "addOptionalTypedIngredients", "addFluidStack");
     private final IRecipeLayoutBuilder actual;
     private final CategoryDocument.Recipe data;
-    private final UIElement root;
+    private final CanvasElement root;
     private final boolean edited;
     private final Map<Object, Object> targets = new IdentityHashMap<>();
     private int nextIndex;
     public final List<String> slotKeys = new ArrayList<>();
     public final IRecipeLayoutBuilder builder;
-    public SlotReplay(IRecipeLayoutBuilder actual, CategoryDocument.Recipe data, UIElement root, boolean edited) {
+    public SlotReplay(IRecipeLayoutBuilder actual, CategoryDocument.Recipe data, CanvasElement root, boolean edited) {
         this.actual = actual; this.data = data; this.root = root; this.edited = edited;
         builder = (IRecipeLayoutBuilder) Proxy.newProxyInstance(getClass().getClassLoader(), new Class[]{IRecipeLayoutBuilder.class}, this);
     }
@@ -60,7 +60,7 @@ public final class SlotReplay implements InvocationHandler {
         if (name.equals("createFocusLink")) {
             if (edited) return null;
             Collection<?> members = args[0] instanceof Collection<?> c ? c : Arrays.asList((Object[]) args[0]);
-            actual.createFocusLink(members.stream().map(v -> (IIngredientAcceptor<?>) targets.getOrDefault(v, v)).toList());
+            actual.createFocusLink(members.stream().map(v -> (IIngredientAcceptor<?>) targets.getOrDefault(v, v)).toArray(IIngredientAcceptor<?>[]::new));
             return null;
         }
         return invokeReal(method, actual, args);
@@ -82,7 +82,7 @@ public final class SlotReplay implements InvocationHandler {
             }
         }
     }
-    private static boolean visible(UIElement element) {
+    private static boolean visible(CanvasElement element) {
         return NativePage.visible(element) && (!(element instanceof NativePartElement nativePart) || nativePart.useSourceDrawing);
     }
     private static Object invokeReal(Method method, Object destination, Object[] values) throws Throwable {

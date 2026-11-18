@@ -19,24 +19,23 @@ public final class VanillaDisplays {
         String category = type.getPath();
         var inputs = recipe.slots.stream().filter(s -> s.role.equals("INPUT")).map(VanillaDisplays::items).toList();
         var outputs = recipe.slots.stream().filter(s -> s.role.equals("OUTPUT")).flatMap(s -> items(s).stream()).toList();
-        ItemStack result = outputs.isEmpty() ? new ItemStack(Items.BARRIER) : outputs.getFirst();
+        ItemStack result = outputs.isEmpty() ? new ItemStack(Items.BARRIER) : outputs.get(0);
         var ingredientList = NonNullList.<Ingredient>create();
         inputs.forEach(items -> ingredientList.add(Ingredient.of(items.stream())));
-        Ingredient first = ingredientList.isEmpty() ? Ingredient.EMPTY : ingredientList.getFirst();
-        var uid = ResourceLocation.parse(recipe.id);
+        Ingredient first = ingredientList.isEmpty() ? Ingredient.EMPTY : ingredientList.get(0);
+        var uid = new ResourceLocation(recipe.id);
         var factory = VjceJeiPlugin.helpers.getVanillaRecipeFactory();
         int ticks = Math.max(1, (int) recipe.duration);
         return switch (category) {
-            case "crafting" -> new RecipeHolder<>(uid, new ShapelessRecipe("", CraftingBookCategory.MISC, result, ingredientList));
-            case "stonecutting" -> new RecipeHolder<>(uid, new StonecutterRecipe("", first, result));
-            case "smelting" -> factory.createSmeltingRecipe(first, result, ticks, recipe.values.getOrDefault("experience", 0.0).floatValue(), uid);
-            case "smoking" -> new RecipeHolder<>(uid, new SmokingRecipe("", CookingBookCategory.MISC, first, result, recipe.values.getOrDefault("experience", 0.0).floatValue(), ticks));
-            case "blasting" -> new RecipeHolder<>(uid, new BlastingRecipe("", CookingBookCategory.MISC, first, result, recipe.values.getOrDefault("experience", 0.0).floatValue(), ticks));
-            case "campfire_cooking" -> new RecipeHolder<>(uid, new CampfireCookingRecipe("", CookingBookCategory.MISC, first, result, recipe.values.getOrDefault("experience", 0.0).floatValue(), ticks));
-            case "smithing" -> new RecipeHolder<>(uid, new SmithingTransformRecipe(at(ingredientList, 0), at(ingredientList, 1), at(ingredientList, 2), result));
+            case "crafting" -> new ShapelessRecipe(uid,"", CraftingBookCategory.MISC, result, ingredientList);
+            case "stonecutting" -> new StonecutterRecipe(uid,"", first, result);
+            case "furnace" -> new SmeltingRecipe(uid,"",CookingBookCategory.MISC,first,result,recipe.values.getOrDefault("experience",0.0).floatValue(),ticks);
+            case "smoking" -> new SmokingRecipe(uid,"", CookingBookCategory.MISC, first, result, recipe.values.getOrDefault("experience", 0.0).floatValue(), ticks);
+            case "blasting" -> new BlastingRecipe(uid,"", CookingBookCategory.MISC, first, result, recipe.values.getOrDefault("experience", 0.0).floatValue(), ticks);
+            case "campfire" -> new CampfireCookingRecipe(uid,"", CookingBookCategory.MISC, first, result, recipe.values.getOrDefault("experience", 0.0).floatValue(), ticks);
+            case "smithing" -> new SmithingTransformRecipe(uid,at(ingredientList, 0), at(ingredientList, 1), at(ingredientList, 2), result);
             case "brewing" -> factory.createBrewingRecipe(list(inputs, 1), list(inputs, 0), result, uid);
             case "anvil" -> factory.createAnvilRecipe(list(inputs, 0), list(inputs, 1), outputs, uid);
-            case "grindstone" -> factory.createGrindstoneRecipe(list(inputs, 0), list(inputs, 1), outputs, recipe.values.getOrDefault("minXp", 0.0).intValue(), recipe.values.getOrDefault("maxXp", 0.0).intValue(), uid);
             case "fuel" -> new IJeiFuelingRecipe() {
                 @Override public List<ItemStack> getInputs() { return inputs.stream().flatMap(List::stream).toList(); }
                 @Override public int getBurnTime() { return ticks; }

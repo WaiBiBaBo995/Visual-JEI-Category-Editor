@@ -86,7 +86,7 @@ public final class Expression {
         double function(String name, List<Double> a) {
             int count = switch (name) { case "min", "max" -> 2; case "clamp" -> 3; case "abs", "floor", "ceil", "round", "sqrt" -> 1; default -> throw error("Unknown function: " + name); };
             if (a.size() != count) throw error("Expected " + count + " arguments for " + name);
-            double v = a.getFirst();
+            double v = a.get(0);
             return switch (name) {
                 case "min" -> Math.min(v, a.get(1)); case "max" -> Math.max(v, a.get(1));
                 case "clamp" -> Math.max(a.get(1), Math.min(a.get(2), v)); case "abs" -> Math.abs(v);

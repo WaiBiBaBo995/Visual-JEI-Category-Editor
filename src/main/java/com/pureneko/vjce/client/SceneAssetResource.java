@@ -1,86 +1,38 @@
 package com.pureneko.vjce.client;
-
-import com.lowdragmc.lowdraglib2.editor.resource.*;
-import com.lowdragmc.lowdraglib2.editor.ui.resource.ResourceProviderContainer;
-import com.lowdragmc.lowdraglib2.configurator.IConfigurable;
-import com.lowdragmc.lowdraglib2.configurator.ui.Configurator;
-import com.lowdragmc.lowdraglib2.gui.texture.*;
-import com.lowdragmc.lowdraglib2.gui.ui.*;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.*;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.BuiltInRegistries;
+import com.lowdragmc.lowdraglib.gui.editor.annotation.LDLRegister;
+import com.lowdragmc.lowdraglib.gui.editor.data.resource.Resource;
+import com.lowdragmc.lowdraglib.gui.editor.ui.ResourcePanel;
+import com.lowdragmc.lowdraglib.gui.editor.ui.resource.ResourceContainer;
+import com.lowdragmc.lowdraglib.gui.widget.*;
+import com.lowdragmc.lowdraglib.gui.texture.*;
+import com.mojang.datafixers.util.Either;
 import net.minecraft.nbt.*;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.state.BlockState;
+import java.io.File;
 import java.util.*;
-
-/** Native LDLib global resource providers: create, inspect, rename, duplicate and drag. */
-final class SceneAssetResource extends Resource<CompoundTag> {
-    static final SceneAssetResource BLOCKS=new SceneAssetResource(false),ENTITIES=new SceneAssetResource(true);
+public abstract class SceneAssetResource extends Resource<CompoundTag> {
+    static final SceneAssetResource BLOCKS=new Blocks(),ENTITIES=new Entities();
     final boolean entity;
-    private SceneAssetResource(boolean entity){this.entity=entity;setDefaultUIWidth(45);}
-    @Override public String getName(){return entity?"vjce_entity":"vjce_block";}
-    @Override public IGuiTexture getIcon(){return Icons.MODEL;}
-    @Override public Tag serializeResource(CompoundTag value,HolderLookup.Provider provider){return value.copy();}
-    @Override public CompoundTag deserializeResource(Tag tag,HolderLookup.Provider provider){return tag instanceof CompoundTag data?data.copy():null;}
-    CompoundTag defaults(){
-        CompoundTag value;
-        if(entity)value=SceneEntities.defaults("minecraft:pig");
-        else{value=new CompoundTag();var state=new CompoundTag();state.putString("Name","minecraft:stone");value.put("state",state);value.put("data",new CompoundTag());}
-        value.putString("assetId",UUID.randomUUID().toString());return value;
+    SceneAssetResource(boolean entity){super(ClientBootstrap.assets().resolve("vjce/"+(entity?"entities":"blocks")).toFile());this.entity=entity;}
+    @LDLRegister(name="vjce_block",group="resource") public static final class Blocks extends SceneAssetResource {public Blocks(){super(false);}}
+    @LDLRegister(name="vjce_entity",group="resource") public static final class Entities extends SceneAssetResource {public Entities(){super(true);}}
+    @Override public String name(){return entity?"vjce_entity":"vjce_block";}
+    @Override public Tag serialize(CompoundTag data){return data.copy();}
+    @Override public CompoundTag deserialize(Tag data){return data instanceof CompoundTag tag?tag.copy():new CompoundTag();}
+    CompoundTag defaults(){var data=entity?SceneEntities.defaults("minecraft:pig"):BlockSceneElement.rows(BlockSceneElement.defaults(),"blocks").getCompound(0).copy();data.putString("assetId",UUID.randomUUID().toString());return data;}
+    @Override public ResourceContainer<CompoundTag,WidgetGroup> createContainer(ResourcePanel panel){var type=this;var container=new ResourceContainer<CompoundTag,WidgetGroup>(this,panel);
+        container.setWidgetSupplier(key->{var group=new WidgetGroup(0,0,44,44);var value=getResource(key);if(value!=null){var scene=new BlockSceneElement();var list=new ListTag();list.add(value.copy());scene.blocks=new CompoundTag();scene.blocks.put(entity?"entities":"blocks",list);scene.width=40;scene.height=40;scene.clock.playing=false;group.addWidget(new CanvasPreview(0,0,40,40,scene,()->getResource(key),entity));}return group;});
+        container.setOnAdd(name->defaults());container.setDragging(key->new SceneAssets.Drop(type,key),drop->new TextTexture(getResourceName(drop.path())));
+        container.setOnEdit(key->SceneAssetConfigurator.open(this,key,panel));return container;
     }
-    @Override public ResourceProviderContainer<CompoundTag> createResourceProviderContainer(IResourceProvider<CompoundTag> provider){
-        var type=this;
-        var inspectedPath=new java.util.concurrent.atomic.AtomicReference<IResourcePath>();
-        var container=new ResourceProviderContainer<CompoundTag>(provider){
-            @Override protected UIElement createResourceUI(IResourcePath path){return super.createResourceUI(path).setId(cellId(path));}
-            @Override protected void onResourceMoved(IResourcePath from,IResourcePath to){if(from.equals(inspectedPath.get()))inspectedPath.set(to);SceneAssets.moved(type,from,to);}
-            @Override protected CompoundTag detachedCopy(IResourcePath key){var copy=super.detachedCopy(key);if(copy!=null)copy.putString("assetId",UUID.randomUUID().toString());return copy;}
-        };
-        if (entity) container.setAddDefault(this::defaults);
-        else if (provider.supportAdd()) {
-            container.setOnCreateMenu((c, menu) -> menu.branch(Icons.ADD_FILE, "ldlib.gui.editor.menu.add_resource", add -> {
-                add.leaf("vjce.asset.default_block", () -> c.addNewResource(defaults()));
-                add.leaf("vjce.asset.from_jei", () -> SceneBlockImports.fromJei(c));
-                add.leaf("vjce.asset.from_inventory", () -> SceneBlockImports.fromInventory(c));
-            }));
-        }
-        container.setOnDragProvider(path->{var value=provider.getResource(path);if(value!=null)SceneAssets.remember(type,path,value);return new SceneAssets.Drop(type,path);});
-        container.setUiSupplier(path->{
-            var value=provider.getResource(path);if(value==null)return new UIElement();
-            var scene=new BlockSceneElement();var data=new CompoundTag();var rows=new ListTag();var row=value.copy();row.putInt("x",0);row.putInt("y",0);row.putInt("z",0);rows.add(row);
-            if (entity) row.putFloat("yaw", SceneEntities.frontQuarterYaw(scene.cameraYaw));
-            data.put(entity?"entities":"blocks",rows);scene.blocks=data;scene.clock.playing=false;scene.animateBlockEntities=false;
-            scene.layout(l->{l.widthPercent(100);l.heightPercent(100);});return scene;
-        });
-        container.setOnEdit((c,path)->{
-            inspectedPath.set(path);
-            var value=provider.getResource(path);if(value==null)return;
-            var edit=new StructuredTagEditor().setCompoundTagOnly();edit.setId("vjce_asset_data");
-            var shown=value.copy();shown.remove("assetId");for(String key:List.of("x","y","z","yaw","pitch","roll","scale"))shown.remove(key);
-            edit.setValue(shown,false);edit.layout(l->{l.widthPercent(100);l.height(270);});var error=new Label();
-            var choose=new SearchComponent<String>(new SearchComponent.ISearchUI<>(){
-                public String resultText(String id){return id;}
-                public void onResultSelected(String id){var data=((CompoundTag)edit.getValue()).copy();if(entity)data.putString("id",id);else{var state=new CompoundTag();state.putString("Name",id);data.put("state",state);}data.put("data",new CompoundTag());data.remove("update");edit.setValue(data,true);}
-                public void search(String query,com.lowdragmc.lowdraglib2.utils.search.IResultHandler<String> out){
-                    var ids=entity?BuiltInRegistries.ENTITY_TYPE.keySet():BuiltInRegistries.BLOCK.keySet();
-                    for(var id:ids)if(!id.toString().equals("minecraft:air")&&!id.toString().equals("minecraft:player")&&id.toString().contains(query.toLowerCase(Locale.ROOT)))out.accept(id.toString());
-                }
-            });choose.setId("vjce_asset_search");choose.layout(l->{l.widthPercent(100);l.height(20);l.flexShrink(0);});
-            edit.setTagResponder(tag->{
-                try{var data=((CompoundTag)tag).copy();validate(data);data.putString("assetId",value.getString("assetId"));
-                    provider.addResource(inspectedPath.get(),data);SceneAssets.changed();c.reloadSpecificResource(inspectedPath.get());error.setText("");
-                }catch(RuntimeException invalid){error.setText(invalid.getMessage());}
-            });
-            var form=new UIElement().layout(l->l.widthPercent(100)).addChildren(new Label().setText("vjce.asset.help"),choose,edit,error);
-            c.getEditor().inspectorView.inspect(IConfigurable.create(group->{var config=new Configurator(getDisplayName().getString());config.addChild(form);group.addConfigurator(config);}));
-        });
-        return container;
-    }
-    String cellId(IResourcePath path){return "vjce_asset_"+getName()+"_"+path.getPathWithType().hashCode();}
-    private void validate(CompoundTag data){
-        if(entity){var id=ResourceLocation.tryParse(data.getString("id"));if(id==null||!BuiltInRegistries.ENTITY_TYPE.containsKey(id)||id.toString().equals("minecraft:player"))throw new IllegalArgumentException("Invalid entity ID");}
-        else if(BlockState.CODEC.parse(NbtOps.INSTANCE,data.getCompound("state")).getOrThrow().isAir())throw new IllegalArgumentException("Scene block cannot be air");
+    static final class CanvasPreview extends Widget {
+        final BlockSceneElement scene;
+        final java.util.function.Supplier<CompoundTag> definition;
+        final boolean entity;
+        CompoundTag shown;
+        CanvasPreview(int x,int y,int w,int h,BlockSceneElement scene){this(x,y,w,h,scene,null,false);}
+        CanvasPreview(int x,int y,int w,int h,BlockSceneElement scene,java.util.function.Supplier<CompoundTag> definition,boolean entity){super(x,y,w,h);this.scene=scene;this.definition=definition;this.entity=entity;}
+        @Override public void updateScreen(){super.updateScreen();if(definition!=null){var next=definition.get();if(next!=null&&!next.equals(shown)){shown=next.copy();var rows=new ListTag();rows.add(shown.copy());scene.blocks=new CompoundTag();scene.blocks.put(entity?"entities":"blocks",rows);scene.release();}}}
+        @Override public void setGui(com.lowdragmc.lowdraglib.gui.modular.ModularUI gui){if(gui==null)scene.release();super.setGui(gui);}
+        @Override public void drawInBackground(net.minecraft.client.gui.GuiGraphics g,int mx,int my,float pt){var p=getPosition();g.pose().pushPose();try{g.pose().translate(p.x,p.y,0);scene.render(g,mx-p.x,my-p.y,pt);}finally{g.pose().popPose();}}
     }
 }

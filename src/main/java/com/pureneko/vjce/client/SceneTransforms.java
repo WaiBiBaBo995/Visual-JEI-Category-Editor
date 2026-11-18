@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.phys.AABB;
 import org.joml.*;
+import java.lang.Math;
 
 final class SceneTransforms {
     static float scale(CompoundTag row){return row.contains("scale")?row.getFloat("scale"):1;}

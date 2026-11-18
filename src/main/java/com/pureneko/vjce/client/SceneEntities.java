@@ -1,7 +1,7 @@
 package com.pureneko.vjce.client;
 
-import com.lowdragmc.lowdraglib2.client.scene.ISceneEntityRenderHook;
-import com.lowdragmc.lowdraglib2.utils.virtuallevel.TrackedDummyWorld;
+import com.lowdragmc.lowdraglib.client.scene.ISceneEntityRenderHook;
+import com.lowdragmc.lowdraglib.utils.TrackedDummyWorld;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -40,7 +40,7 @@ final class SceneEntities implements ISceneEntityRenderHook {
             if (!Float.isFinite(yaw) || !Float.isFinite(pitch) || !Float.isFinite(roll) || !Float.isFinite(scale) || scale < .05f || scale > 16) throw new IllegalArgumentException("Invalid entity angle or scale (0.05..16)");
             Pose pose = row.getString("pose").isBlank() ? Pose.STANDING : Pose.valueOf(row.getString("pose").toUpperCase(Locale.ROOT));
             var entry = new Entry(entity, new Vec3(x, y, z), yaw, pitch, roll, scale, pose);
-            anchor(entry); world.addEntity(entity);
+            anchor(entry); world.entities.put(entity.getId(),entity);
             if (world.getEntity(entity.getId()) != entity) throw new IllegalArgumentException("Entity creation was cancelled: " + id);
             if (Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity) == null) throw new IllegalArgumentException("Entity has no renderer: " + id);
             entries.add(entry); byEntity.put(entity, entry);
@@ -88,8 +88,8 @@ final class SceneEntities implements ISceneEntityRenderHook {
         var data = new CompoundTag();
         try {
             data = switch (id) {
-                case "minecraft:item" -> TagParser.parseTag("{Item:{id:\"minecraft:stone\",count:1},Age:-32768s,PickupDelay:32767s}");
-                case "minecraft:item_display" -> TagParser.parseTag("{item:{id:\"minecraft:stone\",count:1}}");
+                case "minecraft:item" -> TagParser.parseTag("{Item:{id:\"minecraft:stone\",Count:1b},Age:-32768s,PickupDelay:32767s}");
+                case "minecraft:item_display" -> TagParser.parseTag("{item:{id:\"minecraft:stone\",Count:1b}}");
                 case "minecraft:block_display" -> TagParser.parseTag("{block_state:{Name:\"minecraft:stone\"}}");
                 case "minecraft:falling_block" -> TagParser.parseTag("{BlockState:{Name:\"minecraft:sand\"},Time:1}");
                 case "minecraft:text_display" -> TagParser.parseTag("{text:'{\"text\":\"VJCE\"}'}");

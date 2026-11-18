@@ -1,6 +1,6 @@
 package com.pureneko.vjce.integration;
 
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
+import com.pureneko.vjce.client.canvas.CanvasElement;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import org.joml.*;
@@ -11,18 +11,14 @@ import java.util.*;
 public final class ElementTransform {
     private final Matrix4f forward, inverse;
     private final float width, height;
-    public ElementTransform(UIElement root, UIElement element, float sourceWidth, float sourceHeight) {
+    public ElementTransform(CanvasElement root, CanvasElement element, float sourceWidth, float sourceHeight) {
         width = Math.max(1, sourceWidth); height = Math.max(1, sourceHeight);
-        forward = new Matrix4f().translate(-root.getContentX(), -root.getContentY(), 0);
-        var chain = new ArrayList<UIElement>();
-        for (var e = element; e != null; e = e.getParent()) chain.add(e);
-        for (int i = chain.size() - 1; i >= 0; i--) chain.get(i).getStyle().transform2D().pushPose(forward, chain.get(i));
-        forward.translate(element.getContentX(), element.getContentY(), 0)
-                .scale(Math.max(.0001f, element.getContentWidth()) / width, Math.max(.0001f, element.getContentHeight()) / height, 1);
+        forward = new Matrix4f(root.worldMatrix()).invert().mul(element.worldMatrix())
+                .scale(Math.max(.0001f,element.width)/width,Math.max(.0001f,element.height)/height,1);
         inverse = new Matrix4f(forward).invert();
     }
     public Matrix4f matrix() { return new Matrix4f(forward); }
-    public void apply(GuiGraphics graphics) { graphics.pose().mulPose(forward); }
+    public void apply(GuiGraphics graphics) { graphics.pose().mulPoseMatrix(forward); }
     public Vector2f local(double x, double y) { var p = inverse.transformPosition(new Vector3f((float) x, (float) y, 0)); return new Vector2f(p.x, p.y); }
     public Vector2f direction(double x, double y) { var p = inverse.transformDirection(new Vector3f((float) x, (float) y, 0)); return new Vector2f(p.x, p.y); }
     public Vector2f world(float x, float y) { var p = forward.transformPosition(new Vector3f(x, y, 0)); return new Vector2f(p.x, p.y); }

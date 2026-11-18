@@ -25,16 +25,16 @@ public final class CategoryFixtures {
     private static final class Probe implements IRecipeCategory<String> {
         final RecipeType<String> type;
         final boolean rejectProxy, dynamic;
-        Probe(String id, boolean rejectProxy, boolean dynamic) { type = new RecipeType<>(ResourceLocation.parse(id), String.class); this.rejectProxy = rejectProxy; this.dynamic = dynamic; }
+        Probe(String id, boolean rejectProxy, boolean dynamic) { type = new RecipeType<>(new ResourceLocation(id), String.class); this.rejectProxy = rejectProxy; this.dynamic = dynamic; }
         @Override public RecipeType<String> getRecipeType() { return type; }
         @Override public Component getTitle() { return Component.literal("Probe " + type.getUid()); }
         @Override public IDrawable getIcon() { return VjceJeiPlugin.helpers.getGuiHelper().createDrawableItemStack(new ItemStack(Items.STONE)); }
         @Override public int getWidth() { return 120; }
         @Override public int getHeight() { return 50; }
-        @Override public ResourceLocation getRegistryName(String recipe) { return dynamic ? null : ResourceLocation.fromNamespaceAndPath(type.getUid().getNamespace(), type.getUid().getPath() + "/" + recipe); }
+        @Override public ResourceLocation getRegistryName(String recipe) { return dynamic ? null : new ResourceLocation(type.getUid().getNamespace(), type.getUid().getPath() + "/" + recipe); }
         @Override public void setRecipe(IRecipeLayoutBuilder builder, String recipe, IFocusGroup focuses) {
             if (rejectProxy && Proxy.isProxyClass(builder.getClass())) throw new IllegalArgumentException("Expected test-only capture restriction");
-            builder.addInputSlot().setPosition(3, 10, 24, 24, mezz.jei.api.gui.placement.HorizontalAlignment.CENTER, mezz.jei.api.gui.placement.VerticalAlignment.CENTER).addItemStack(new ItemStack(Items.STONE));
+            builder.addInputSlot(3, 10).addItemStack(new ItemStack(Items.STONE));
             builder.addOutputSlot(86, 14).addItemStack(new ItemStack(Items.DIAMOND));
         }
         @Override public void draw(String recipe, mezz.jei.api.gui.ingredient.IRecipeSlotsView slots, GuiGraphics graphics, double x, double y) {

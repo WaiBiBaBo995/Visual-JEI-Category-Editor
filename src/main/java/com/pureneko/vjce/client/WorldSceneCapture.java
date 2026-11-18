@@ -10,7 +10,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.neoforge.entity.PartEntity;
+import net.minecraftforge.entity.PartEntity;
 import java.util.*;
 
 /** Read-only client snapshots. A failed capture never mutates the editor's working copy. */
@@ -36,10 +36,10 @@ final class WorldSceneCapture {
             if (rows.size() == BlockSceneElement.MAX_BLOCKS) throw error("vjce.world.too_many_blocks",BlockSceneElement.MAX_BLOCKS);
             var row = new CompoundTag(); var local = pos.subtract(selection.min);
             row.putInt("x",local.getX());row.putInt("y",local.getY());row.putInt("z",local.getZ());
-            row.put("state",BlockState.CODEC.encodeStart(NbtOps.INSTANCE,state).getOrThrow());
+            row.put("state",BlockState.CODEC.encodeStart(NbtOps.INSTANCE,state).getOrThrow(false, message -> {}));
             var blockEntity=level.getBlockEntity(pos);
-            row.put("data",blockEntity==null?new CompoundTag():blockEntity.saveWithoutMetadata(level.registryAccess()).copy());
-            if(blockEntity!=null)row.put("update",blockEntity.getUpdateTag(level.registryAccess()).copy());
+            row.put("data",blockEntity==null?new CompoundTag():blockEntity.saveWithoutMetadata().copy());
+            if(blockEntity!=null)row.put("update",blockEntity.getUpdateTag().copy());
             rows.add(row);
         }
         var result = previous.copy(); result.put("blocks",rows);
@@ -57,7 +57,7 @@ final class WorldSceneCapture {
         var row=SceneEntities.defaults(BuiltInRegistries.ENTITY_TYPE.getKey(source.getType()).toString());
         row.putDouble("x",source.getX()-origin.getX());row.putDouble("y",source.getY()-origin.getY());row.putDouble("z",source.getZ()-origin.getZ());
         row.putFloat("yaw",source.getYRot());row.putFloat("pitch",source.getXRot());row.putString("pose",source.getPose().name());
-        row.putFloat("scale",source instanceof LivingEntity living?living.getScale():1);
+        row.putFloat("scale",1);
         var data=source.saveWithoutId(new CompoundTag()).copy();
         for(String key:List.of("id","UUID","UUIDMost","UUIDLeast","Pos","Motion","Rotation","Passengers","RootVehicle"))data.remove(key);
         translate(data,"TileX","TileY","TileZ",origin);translate(data,"SleepingX","SleepingY","SleepingZ",origin);
@@ -75,7 +75,7 @@ final class WorldSceneCapture {
     }
     static boolean loaded(ClientLevel level,BlockPos pos){
         // ClientLevel.hasChunk/hasChunkAt returns true even for the empty fallback chunk.
-        return level.getChunkSource().getChunk(pos.getX()>>4,pos.getZ()>>4,net.minecraft.world.level.chunk.status.ChunkStatus.FULL,false)!=null;
+        return level.getChunkSource().getChunk(pos.getX()>>4,pos.getZ()>>4,net.minecraft.world.level.chunk.ChunkStatus.FULL,false)!=null;
     }
     static IllegalArgumentException error(String key,Object...args){return new IllegalArgumentException(Component.translatable(key,args).getString());}
 }

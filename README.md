@@ -1,375 +1,97 @@
-<div align="center">
+# Visual JEI Category Editor — Forge 1.20.1
 
-# Visual JEI Category Editor
+游戏内可视化 JEI 分类与展示配方编辑器。此分支独立维护 Minecraft 1.20.1，使用 Java 17、Forge 和 LDLib1，编辑器与材质资源工作流参考 [MBD2 1.20.1](https://github.com/Low-Drag-MC/Multiblocked2/tree/1.20.1)。1.21.1 NeoForge 源码独立维护在 [main 分支](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/main)。
 
-**把 JEI 配方页变成你的设计画布。**<br>
-**Make JEI recipe pages your canvas.**
+![LDLib1 配置器与纹理资源](docs/screenshots/forge-1.20.1/editor-layout.png)
 
-![Version](https://img.shields.io/badge/version-1.0.0-4c9b65?style=flat-square)
-![Minecraft](https://img.shields.io/badge/Minecraft-1.20.1%20%7C%201.21.1-62a047?style=flat-square)
-![Loader](https://img.shields.io/badge/loader-Forge%20%7C%20NeoForge-e58d45?style=flat-square)
-![Java](https://img.shields.io/badge/Java-17%20%7C%2021-5382a1?style=flat-square)
-![Client](https://img.shields.io/badge/environment-client-7885b5?style=flat-square)
+所有修改仅影响客户端 JEI 展示；实际合成和机器配方仍由原模组或配方脚本决定。服务器无需安装 VJCE。
 
-[简体中文](#简体中文) · [English](#english) ·
-[进阶指南 / Advanced guide](docs/GUIDE.zh-CN.md)
+## 安装
 
-</div>
-
-![VJCE 槽位检视与配方编辑 / VJCE recipe editing and slot inspector](docs/screenshots/0.11.0/slot-inspector.png)
-
----
-
-## 简体中文
-
-**VJCE** 是基于 [LDLib2](https://github.com/Low-Drag-MC/LDLib2) 的游戏内可视化
-[JEI](https://github.com/mezz/JustEnoughItems) 分类与展示配方编辑器。
-面向整合包作者和模组开发者，你可以新建分类、调整已有配方页面，
-把方块、实体和世界快照放进 JEI，再将工程与资源一起导出。
-
-> **展示与实际配方**：所有编辑作用于客户端 JEI 展示。
-> 实际合成、机器处理和服务端配方仍由原模组或你的配方脚本决定。服务器无需安装 VJCE。
-
-[功能亮点](#功能亮点) · [安装](#安装) · [快速开始](#快速开始) ·
-[常用操作](#常用操作) · [导出与分享](#导出与分享) · [兼容说明](#兼容说明) · [开发](#开发)
-
-### 功能亮点
-
-| 能力 | 可以做什么 |
+| 组件 | 开发依赖 |
 | --- | --- |
-| **分类与配方** | 搜索已注册 JEI 分类，新建分类或覆盖已有页面，配置标题、图标、催化物和展示数据。 |
-| **可视化画布** | 选择、移动、缩放、旋转与组合元素，配合对齐参考线、属性检视和撤销重做调整布局。 |
-| **原料与槽位** | 从 JEI 拖入原料，编辑角色、候选项、数量和概率；支持物品、流体及已注册的其他原料类型。 |
-| **三维场景** | 拖入方块和实体，或从世界框选独立快照，展示方块实体、装备、姿态和原生动画。 |
-| **数据绑定** | 用自定义字段和表达式驱动文字、进度、颜色及可见性，展示能量、温度等参数。 |
-| **工程与资源** | 保存可继续编辑的 `.vjce` 工程，管理全局方块／实体资源，并导出整合包 ZIP。 |
+| Minecraft | 1.20.1 |
+| Java | 17 |
+| Forge | 47.4.10 |
+| LDLib | 1.0.48，Forge 1.20.1 |
+| JEI | 15.20.0.105，Forge 1.20.1 |
+| Create（可选） | 6.0.6-163 |
+| Mekanism（可选） | 1.20.1-10.4.9.61 |
+| AE2（可选） | 15.4.12，GuideME 20.1.15 |
 
-<details>
-<summary><strong>更多实机画面：三维场景、世界框选与 JEI 效果</strong></summary>
+将模组 JAR、LDLib 和 JEI 放入客户端 `mods/`。Create 需要其发行包要求的 Flywheel／Ponder；开发客户端固定 Flywheel 1.0.4、Ponder 1.0.80。MBD2 为参考项目，无需安装。
 
-**场景编辑** — 从资源管理器拖入方块和实体，在独立编辑页调整实例。
+## 使用
 
-![可停靠场景编辑页](docs/screenshots/0.10.0/scene-editor.png)
+1. 进入世界，执行 `/vjce editor`。
+2. 从分类库新建分类，或选择现有 JEI 分类。
+3. 在“分类数据”中编辑分类、配方、候选原料、数量、概率、催化物和字段。
+4. 在“页面布局”中编辑槽位、文字、进度、LDLib1 材质及三维场景。
+5. 用 `File → Save` 保存 `.vjce1201` 工程；“保存并应用”写入运行配置，重新进入世界生效。
+6. “导出 ZIP”或 `/vjce export` 输出 `exports/vjce-1.20.1-modpack.zip`，解压到目标实例根目录。
 
-**世界框选** — 在大预览中选取结构，保存客户端可读取的方块与实体状态。
-
-![从世界框选三维场景](docs/screenshots/0.10.0/world-preview.png)
-
-**实际 JEI** — 导入的流体储罐保留液体显示和等级外框颜色。
-
-![实际 JEI 中的流体储罐场景](docs/screenshots/0.10.0/tank-jei.png)
-
-截图来自已有功能验收，开发与验收环境见下方安装说明。
-
-</details>
-
-### 安装
-
-两个版本分别构建，安装时请选择对应 Minecraft 版本的 JAR 和前置：
-
-| Minecraft | 加载器 / Java | 源码与说明 |
-| --- | --- | --- |
-| 1.21.1 | NeoForge / Java 21 | 仓库根目录，下表介绍此版本 |
-| 1.20.1 | Forge / Java 17 | [forge-1.20.1/](forge-1.20.1/README.md)，独立 Gradle 工程 |
-
-使用 **Minecraft 1.21.1 + Java 21 + NeoForge**，将 VJCE 的模组 JAR
-及两个必需前置放入客户端实例的 `mods/` 文件夹。源码 JAR 不用于安装。
-
-| 组件 | VJCE 声明的最低要求（无上限） | 开发／验收版本 |
-| --- | --- | --- |
-| NeoForge | `>= 21.1.216`，适用于 Minecraft 1.21.1 | `21.1.248`、`21.1.262` |
-| LDLib2 | `>= 2.2.44` | `2.2.44`，NeoForge 1.21.1 **all** 发行包 |
-| JEI | `>= 19.64.0.455` | `19.70.0.464` |
-
-表中为 VJCE 自身的依赖声明；实际安装还需满足所选依赖各自的要求。
-例如 JEI `19.64.0.455` 自身要求 NeoForge `21.1.238+`。
-放宽后的 JEI 下限已核对 API 和关键 Mixin 签名，尚未新增旧版组合的实机验收。
-编译依赖仍固定为原开发版本；取消上限不代表所有后续版本都已验证兼容。
-LDLib2 `2.2.44` 提供当前编辑器必需接口，因此保留其下限。
-已检查的 JEI `19.64.0.455` 官方制品另有 Minecraft 版本声明冲突，
-具体安装限制见 [依赖元数据说明](docs/GUIDE.zh-CN.md#依赖元数据说明)。
-
-**可选集成**：Mekanism `1.21.1-10.7.19.85`、Create `6.0.11-320` 已有验收记录。
-Create 机械动画预设需要安装 Create 及其自身前置；普通方块、实体和世界快照无需 Create。
-MBD2 是编辑器交互的参考项目，无需安装。
-
-### 快速开始
-
-1. **打开编辑器**：进入世界，在聊天栏输入 `/vjce editor`。
-2. **选择分类**：在“分类库”中新建分类，或搜索已有 JEI 分类并创建覆盖工程。
-3. **编辑数据**：设置分类 ID、标题、图标与页面尺寸；在“配方数据”中点击槽位，
-   通过右侧检视面板编辑候选原料及其属性。
-4. **设计页面**：切到“页面布局”，调整槽位、文字和装饰；点击“添加场景”可加入三维内容。
-5. **预览并应用**：点击播放按钮检查页面，再点击“保存并应用”。
-   **退出并重新进入世界后，JEI 才会应用新配置。**
-6. **保留工程**：使用 `File → Save` 保存 `.vjce` 工程，方便继续编辑；发布时导出整合包 ZIP。
-
-想先体验一个现成分类？将 [examples/](examples/) 内的 `config/` 复制到实例根目录，
-然后进入世界。此示例只演示 JEI 展示，不注册实际合成配方。
-
-原料类型从当前 JEI 注册列表选择；切换类型后选择对应原料才会替换数据，关闭选择器会保留原值。
-未加载模组的旧类型显示为“不可用”，仍保留其原始数据。槽位角色、绑定属性及枚举参数使用列表选择；
-名称、物品／流体 ID、表达式和 NBT 等字段继续按各自用途编辑。
-
-### 常用操作
+分类库、分类数据、场景编辑与弹窗统一使用深色表单；侧栏支持与资源管理器一致的收起动画，视图缩放保留编辑状态，页面布局工作区透明。右侧配置器沿用 MBD2 1.20.1 的 LDLib1 原生样式：深色底、可折叠分组、紧凑同行输入、圆形开关、颜色条和方形纹理预览。底部材质库提供 LDLib1 材质类型、九宫格、组合材质和资源属性面板，可拖入画布。方块资源提供 ID 搜索、预览和合法状态下拉；实体资源提供类型搜索、预览和姿态设置，两者支持高级 NBT。场景支持方块、方块实体、实体、独立动画和世界快照。
 
 | 操作 | 行为 |
 | --- | --- |
-| 左键单击 | 选中组件或配方背景 |
-| `Alt` + 单击 | 循环选择重叠组件和原生图层 |
-| `Shift` + 左键拖动 | 移动组件 |
-| 拖动完全空白处 | 平移画布 |
-| `Ctrl` + 单击 | 进入绿色变换框模式，松开 `Ctrl` 后保持 |
-| 拖动绿色框边缘／四角 | 调整尺寸；`Ctrl` + 拖四角等比例缩放 |
-| 绿色模式中 `Alt` + 左键拖动内部 | 绕中心旋转；同时按 `Shift` 时以 15° 吸附 |
-| `Esc` | 取消当前拖动；未拖动时退出绿色模式 |
+| 左键 | 仅选择 |
+| Shift＋左键拖动 | 移动组件并吸附 |
+| Ctrl＋单击 | 进入绿色变换框 |
+| 绿色框边缘／八个控制点拖动 | 调整布局宽高；Ctrl＋拖角保持比例 |
+| Alt＋绿色框内部拖动 | 旋转；Shift 以 15° 吸附 |
+| 变换过程中按 Alt | 暂停位置吸附 |
+| 层级树 Ctrl／Shift＋单击 | 切换多选／同级范围选择 |
+| Alt＋单击 | 循环选择重叠组件 |
+| Ctrl＋G／Ctrl＋Shift＋G | 分组／取消分组 |
+| Ctrl＋D／Delete | 复制／删除 |
+| Ctrl＋Z／Ctrl＋Shift＋Z | 撤销／重做 |
+| 空白左拖／中键拖动／滚轮 | 平移／平移／以鼠标为锚点缩放 |
+| Esc | 取消当前手势；再按退出绿色框 |
 
-移动与拉伸带有对齐参考线。更多手势、控件绑定、表达式、文件格式及场景限制见
-[双语进阶指南](docs/GUIDE.zh-CN.md)。
+场景编辑：左键选择、右键环绕、中键平移、滚轮缩放，G／R／S 进行移动／旋转／缩放，X／Y／Z 限定轴，Enter 提交手势，Esc 取消。世界框选保留全屏对话框，使用 MBD2 式自由相机：按住右键转向，配合 W/A/S/D/Q/E 移动、Shift 加速，按住右键滚轮调速。Shift＋左键交替选择两个角点，也可编辑两行 XYZ 坐标。场景半径控制预览范围，右侧参数栏可以隐藏。
 
-### 导出与分享
+原料选择器沿用 JEI 的搜索规则和配置，支持 `@模组`、组合、排除、或条件和短语，输入独立于 JEI 主搜索框。页面布局默认显示可切换的 JEI 单配方参照外框，标出准确原点和宽高；随画布平移缩放，独立于组件变换，不参与导出。
 
-点击“导出整合包 ZIP”，或执行：
+原料类型从当前 JEI 注册列表选择；切换后选定对应类型的原料才会替换数据，关闭选择器保留原值。
+未加载模组的旧类型标记为“不可用”并保留数据。槽位角色、绑定属性及其他枚举使用列表选择。
 
-```mcfunction
-/vjce export
-```
+配方数据的三个添加按钮同一行等宽排列，当前配方在两个列表中同步变绿；槽位配置器使用单条外层滚动条。资源栏、页面侧栏和全局配置器收起时，内容随动画补满空间，保留编辑内容和视角；右侧配置器左上角提供常驻箭头。
 
-输出为 `exports/vjce-modpack.zip`，解压到目标整合包的**实例根目录**。
-导出内容包括分类运行配置、已保存工程，以及 LDLib2 管理的外部贴图和场景资源。
-接收方仍需安装 VJCE、必需前置及资源引用的其他模组。
+## 工程与兼容
 
-| 路径／格式 | 用途 |
-| --- | --- |
-| `config/vjce/categories/*.json` | JEI 分类、展示配方、绑定和布局配置 |
-| `.vjce` | 可继续编辑的工程文件 |
-| `config/vjce/editor.json` | 编辑器外观、窗口及分栏偏好 |
-| `exports/vjce-modpack.zip` | 可分发的整合包配置与资源 |
+- 工程后缀为 `.vjce1201`，配置位于 `config/vjce-1.20.1/categories/`。
+- 此版本不导入 1.21.1 的 LDLib2 工程。`main` 分支的 1.21.1 工程保持独立。
+- 原生分类保留 JEI 原料检索与焦点关联。仅改布局继续使用原生配方填充；覆盖展示原料后禁用填充。
+- 特殊控件无法安全拆解时保留只读原页；第三方配方新增能力取决于对应适配。
+- 世界快照最多 4096 个方块、32 个实体、每轴 32 格，仅包含客户端已同步的数据。
+- 示例：将 [examples/config/](examples/config/) 复制到实例根目录。
 
-### 兼容说明
+## 开发
 
-- **原版分类**：已适配工作台、切石、熔炼、烟熏、高炉、营火、锻造、酿造、铁砧、砂轮、燃料和堆肥，共 12 类。
-- **第三方分类**：支持通用页面读取，已验收 Mekanism 的 30 个机器分类。
-  新增／复制任意第三方配方、特殊控件的交互及内部三维绘制仍取决于具体适配。
-  无法安全解析的页面保留只读原页；缺少稳定配方 ID 时限制单条数据覆盖。
-- **配方填充**：仅改布局时沿用来源填充逻辑；覆盖展示原料或追加展示配方时禁用填充，避免与真实配方不一致。
-- **世界快照**：每场景最多 4096 个方块、32 个实体，框选每轴最多 32 格。
-  只能保存客户端已同步的数据；重新导入会替换旧方块和实体列表，即使未勾选导入实体也会清空旧实体。
-
-### 开发
-
-需要 JDK 21，项目自带 Gradle Wrapper：
+检出 `forge-1.20.1` 分支，并选择 JDK 17。下列命令均在该分支的项目根目录执行：
 
 ```powershell
-# Windows：构建与启动开发客户端
 .\gradlew.bat build
 .\gradlew.bat runClient
-
-# 游戏内 UI 验证
-.\gradlew.bat runClient -PuiTest
-
-# 原料类型与固定选项专项验证
-.\gradlew.bat runClient -PuiTest=vjce_choices
+.\gradlew.bat runClient -PuiTest=all
+.\gradlew.bat runClient -PuiTest=picker
+.\gradlew.bat runClient -PuiTest=panels
+.\gradlew.bat runClient -PuiTest=choices
+.\gradlew.bat runClient -PuiTest=all -PwithCreate=true -PwithMekanism=true -PwithAe2=true
 ```
 
-```bash
-# Linux / macOS
-sh ./gradlew build
-sh ./gradlew runClient
-```
+产物在 `build/libs/`。客户端验证输出在 `build/ui-test/`，验收失败会让 `runClient` 任务失败，详细结果见 `report.json` 的 `passed` 和 `exit-code.txt`。分类审计输出在 `run/vjce-category-audit.json`。
 
-模组 JAR 与源码 JAR 输出到 `build/libs/`。构建版本由 `gradle.properties` 的
-`mod_version` 指定，模组元数据见 `src/main/resources/META-INF/neoforge.mods.toml`。
-UI 测试会启动隔离测试世界，并在 `build/ui-test/` 输出报告和截图。
-构建说明及可选模组验证命令见 [进阶指南](docs/GUIDE.zh-CN.md#构建与验证)。
-
----
+[进阶指南](docs/GUIDE.zh-CN.md) · [许可证](LICENSE)
 
 ## English
 
-**VJCE** is an in-game visual [JEI](https://github.com/mezz/JustEnoughItems) category
-and display recipe editor built with [LDLib2](https://github.com/Low-Drag-MC/LDLib2).
-Create categories, redesign existing recipe pages, add blocks, entities and world snapshots,
-then export your projects and resources for a modpack.
+The `forge-1.20.1` branch ports VJCE to Minecraft 1.20.1, Forge 47.4.10, Java 17, LDLib 1.0.48 and JEI 15.20.0.105. Its editor and texture resources follow the LDLib1 workflow used by MBD2 1.20.1. The [main branch](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/main) contains the separate 1.21.1 NeoForge project.
 
-> **Display and processing:** edits affect client-side JEI presentation.
-> Actual crafting, machine processing and server recipes remain controlled by the original mod
-> or your recipe scripts. VJCE is not required on the server.
+Run `/vjce editor` in a world. Create or import a category, edit recipe data and canvas layouts, then save a `.vjce1201` project. Publish the configuration and re-enter the world to apply it. `/vjce export` creates an archive to extract at the destination instance root.
 
-[Features](#features) · [Installation](#installation) · [Quick start](#quick-start) ·
-[Controls](#controls) · [Export and share](#export-and-share) ·
-[Compatibility](#compatibility) · [Development](#development)
+Texture resources use LDLib1 texture types and property editors. Canvas elements support transforms, groups, bindings and opacity. Scene tabs support blocks, block entities, entities and read-only world snapshots. Optional adapters cover Create and Mekanism. Actual server recipes are unaffected. Existing 1.21.1 projects are not imported.
 
-### Features
+Ingredient types come from the current JEI registry. Changing a type opens a picker limited to that type; selecting a result commits the complete replacement, while cancelling preserves the original. Unavailable types retain their original data and display an unavailable label. Slot roles, binding properties and enum parameters use dropdowns.
 
-| Feature | What you can do |
-| --- | --- |
-| **Categories and recipes** | Browse JEI categories, create your own or override pages; configure titles, icons, catalysts and display data. |
-| **Visual canvas** | Select, move, resize, rotate and group elements with alignment guides, an inspector, and undo/redo. |
-| **Ingredients and slots** | Drag ingredients from JEI and edit roles, alternatives, amounts and chances; use items, fluids and other registered types. |
-| **3D scenes** | Arrange blocks and entities or capture world snapshots, including block entities, equipment, poses and native animations. |
-| **Data bindings** | Drive text, progress, color and visibility with custom fields and expressions for energy, temperature and other values. |
-| **Projects and resources** | Save editable `.vjce` projects, manage shared block/entity resources and export a modpack ZIP. |
-
-<details>
-<summary><strong>In-game gallery: scenes, world selection and JEI output</strong></summary>
-
-**Scene editor** — Drag blocks and entities from the resource browser into a dedicated scene tab.
-
-![Dockable scene editor](docs/screenshots/0.10.0/scene-editor.png)
-
-**World selection** — Capture a structure and the block/entity state available to the client.
-
-![World snapshot selection](docs/screenshots/0.10.0/world-preview.png)
-
-**Actual JEI output** — Imported fluid tanks retain their contents and tier colors.
-
-![Fluid tank scenes in JEI](docs/screenshots/0.10.0/tank-jei.png)
-
-These screenshots come from previous feature validation runs.
-Development and validation versions are listed in Installation below.
-
-</details>
-
-### Installation
-
-The two versions build independently. Choose the JAR and dependencies for your Minecraft version:
-
-| Minecraft | Loader / Java | Source and instructions |
-| --- | --- | --- |
-| 1.21.1 | NeoForge / Java 21 | Repository root; documented below |
-| 1.20.1 | Forge / Java 17 | [forge-1.20.1/](forge-1.20.1/README.md), a standalone Gradle project |
-
-Use **Minecraft 1.21.1, Java 21 and NeoForge**. Place the VJCE mod JAR and both
-required dependencies in the client's `mods/` folder. Do not install the sources JAR.
-
-| Component | VJCE minimum declaration (no upper bound) | Development / validation versions |
-| --- | --- | --- |
-| NeoForge | `>= 21.1.216`, for Minecraft 1.21.1 | `21.1.248`, `21.1.262` |
-| LDLib2 | `>= 2.2.44` | `2.2.44`, NeoForge 1.21.1 **all** distribution |
-| JEI | `>= 19.64.0.455` | `19.70.0.464` |
-
-These are VJCE's own declarations; the selected dependencies also enforce their own requirements.
-For example, JEI `19.64.0.455` requires NeoForge `21.1.238+`.
-The lower JEI baseline has been checked against API references and key Mixin signatures;
-the older combinations have not received new in-game validation.
-Compile dependencies remain pinned. Removing upper bounds does not verify every later release.
-LDLib2 `2.2.44` provides required editor APIs, so its minimum is retained.
-The inspected official JEI `19.64.0.455` artifact also has conflicting Minecraft metadata;
-see the [dependency metadata notes](docs/GUIDE.zh-CN.md#dependency-metadata-notes).
-
-**Optional integrations:** Mekanism `1.21.1-10.7.19.85` and Create `6.0.11-320`
-have recorded validation runs. Create animation presets require Create and its dependencies;
-ordinary block scenes, entities and world snapshots work without Create.
-MBD2 inspired the editor workflow and is not a dependency.
-
-### Quick start
-
-1. **Open the editor:** enter a world and run `/vjce editor` in chat.
-2. **Choose a category:** create one in **Category Library**, or search for an existing
-   JEI category and create an override project.
-3. **Edit data:** set the category ID, title, icon and page size. In **Recipes**, select
-   a slot and use the right-hand inspector to edit its ingredients and properties.
-4. **Design the page:** open **Layout** to arrange slots, text and decoration.
-   Use **Add scene** to include 3D content.
-5. **Preview and apply:** use the play button, then **Save and Apply**.
-   **Leave and re-enter the world for JEI to apply the saved configuration.**
-6. **Keep your project:** use `File → Save` to save an editable `.vjce` file.
-   Export a modpack ZIP when ready to share.
-
-To try the included category, copy the `config/` folder from [examples/](examples/)
-into your instance root before entering a world.
-The example provides JEI display data; it does not register a crafting recipe.
-
-Ingredient types are selected from the current JEI registry. A type change opens a picker for that type;
-choosing a result replaces the complete ingredient, while cancelling preserves the original. Unavailable
-types keep their stored data and display an unavailable label. Slot roles, binding properties and enum
-parameters use dropdowns; names, item/fluid IDs, expressions and NBT retain their existing editors.
-
-### Controls
-
-| Action | Result |
-| --- | --- |
-| Left-click | Select an element or the recipe background |
-| `Alt` + click | Cycle through overlapping elements and native layers |
-| `Shift` + left-drag | Move an element |
-| Drag completely empty space | Pan the canvas |
-| `Ctrl` + click | Enter green transform mode; it stays active after releasing `Ctrl` |
-| Drag a green edge / corner | Resize; hold `Ctrl` while dragging a corner to preserve proportions |
-| `Alt` + left-drag inside the green frame | Rotate around the center; add `Shift` for 15° snapping |
-| `Esc` | Cancel the current drag, or leave transform mode when idle |
-
-Moving and resizing include alignment guides. The [advanced guide](docs/GUIDE.zh-CN.md#english)
-covers more gestures, bindings, expressions, file formats and scene limits.
-
-### Export and share
-
-Use **Export ZIP**, or run:
-
-```mcfunction
-/vjce export
-```
-
-Extract `exports/vjce-modpack.zip` into the target modpack's **instance root**.
-The archive includes category runtime configurations, saved projects, and external textures
-and scene resources managed by LDLib2. Recipients still need VJCE, its required dependencies,
-and any mods referenced by those resources.
-
-| Path / format | Purpose |
-| --- | --- |
-| `config/vjce/categories/*.json` | JEI categories, display recipes, bindings and layouts |
-| `.vjce` | Editable project file |
-| `config/vjce/editor.json` | Editor theme, window and split-panel preferences |
-| `exports/vjce-modpack.zip` | Distributable modpack configuration and resources |
-
-### Compatibility
-
-- **Vanilla categories:** 12 adapted categories cover crafting, stonecutting, smelting,
-  smoking, blasting, campfire cooking, smithing, brewing, anvil, grindstone, fuel and composting.
-- **Third-party categories:** generic page reading is supported, with recorded validation
-  across 30 Mekanism machine categories. Creating or cloning arbitrary third-party recipes,
-  special widget interactions and internal 3D rendering still require specific adapters.
-  Unsafe pages remain read-only; recipes without stable IDs restrict individual data overrides.
-- **Recipe transfer:** layout edits retain the original transfer logic. Ingredient overrides
-  and added display recipes disable transfer to avoid mismatches with actual recipes.
-- **World snapshots:** up to 4096 blocks and 32 entities per scene, with selections limited
-  to 32 blocks per axis. Only client-synchronized data can be captured. Re-importing replaces
-  both lists; existing entities are cleared even when entity import is disabled.
-
-### Development
-
-JDK 21 is required. A Gradle Wrapper is included:
-
-```powershell
-# Windows: build and launch the development client
-.\gradlew.bat build
-.\gradlew.bat runClient
-
-# In-game UI validation
-.\gradlew.bat runClient -PuiTest
-```
-
-```bash
-# Linux / macOS
-sh ./gradlew build
-sh ./gradlew runClient
-```
-
-Mod and sources JARs are written to `build/libs/`. The build version is set by `mod_version`
-in `gradle.properties`; mod metadata is in `src/main/resources/META-INF/neoforge.mods.toml`.
-UI validation starts an isolated test world and writes reports and screenshots to `build/ui-test/`.
-See the [advanced guide](docs/GUIDE.zh-CN.md#building-and-validation) for build details
-and optional mod validation commands.
-
----
-
-<div align="center">
-
-**作者 / Author: pureneko** · **Mod ID: `vjce`**
-
-基于 LDLib2 与 JEI，编辑交互参考 MBD2。感谢这些项目提供的基础与灵感。<br>
-Built with LDLib2 and JEI, with editor workflow inspiration from MBD2.
-
-[许可证原文 / License text](LICENSE)
-
-</div>
+Check out `forge-1.20.1` and build with JDK 17 from the project root using the commands above. Run `runClient -PuiTest=choices` for the form selection checks. See the client reports for the exact validation outcome.

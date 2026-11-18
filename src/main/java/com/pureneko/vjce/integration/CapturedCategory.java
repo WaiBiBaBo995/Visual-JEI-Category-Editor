@@ -5,7 +5,7 @@ import com.mojang.serialization.Codec;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
-import mezz.jei.api.helpers.ICodecHelper;
+
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.*;
 import java.util.*;
@@ -45,15 +45,12 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
             } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
         } else stableId = id.toString();
         var result = capture.toDocument(stableId);
-        if (recipe instanceof RecipeHolder<?> holder && holder.value() instanceof AbstractCookingRecipe cooking) {
+        if (recipe instanceof AbstractCookingRecipe cooking) {
             result.duration = cooking.getCookingTime();
             result.values.put("experience", (double) cooking.getExperience());
         }
         if (recipe instanceof mezz.jei.api.recipe.vanilla.IJeiFuelingRecipe fuel) result.duration = fuel.getBurnTime();
         if (recipe instanceof mezz.jei.api.recipe.vanilla.IJeiCompostingRecipe compost) result.values.put("chance", (double) compost.getChance());
-        if (recipe instanceof mezz.jei.api.recipe.vanilla.IJeiGrindstoneRecipe grindstone) {
-            result.values.put("minXp", (double) grindstone.getMinXpReward()); result.values.put("maxXp", (double) grindstone.getMaxXpReward());
-        }
         NativePage.remember(original, recipe, result);
         return result;
     }
@@ -146,7 +143,6 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
         if (active.isPresent()) active.get().tooltip(tooltip, slots, x, y);
         else original.getTooltip(tooltip, recipe, slots, x, y);
     }
-    @Override public boolean needsRecipeBorder() { return original.needsRecipeBorder(); }
     @Override public mezz.jei.api.gui.drawable.IDrawable getIcon() { return original.getIcon(); }
     public boolean blocksTransfer(T recipe) {
         if (additions.contains(recipe)) return true;
@@ -154,20 +150,7 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
         catch (RuntimeException error) { preserveOriginal(recipe, error); return false; }
     }
     public void addDisplay(T recipe, CategoryDocument.Recipe data) { records.put(recipe, data); additions.add(recipe); }
-    @Override public ResourceLocation getRegistryName(T recipe) { return additions.contains(recipe) ? ResourceLocation.parse(presentation(recipe).id) : original.getRegistryName(recipe); }
-    @Override public List<ResourceLocation> getSourceRecipeIds(T recipe) { return additions.contains(recipe) ? List.of() : original.getSourceRecipeIds(recipe); }
-    @Override @SuppressWarnings("unchecked")
-    public Codec<T> getCodec(ICodecHelper helper, mezz.jei.api.recipe.IRecipeManager manager) {
-        var nativeCodec = original.getCodec(helper, manager);
-        if (nativeCodec == null) return null;
-        if (!VanillaDisplays.supports(getRecipeType().getUid())) return nativeCodec;
-        var displayCodec = Codec.STRING.fieldOf("vjce_display").codec();
-        return Codec.either(displayCodec, nativeCodec).xmap(either -> either.map(id -> {
-            var data = document.recipes.stream().filter(recipe -> recipe.id.equals(id) && recipe.source.isEmpty()).findFirst().orElseThrow();
-            T recipe = (T) VanillaDisplays.create(getRecipeType().getUid(), data);
-            addDisplay(recipe, data); return recipe;
-        }, recipe -> recipe), recipe -> additions.contains(recipe) ? com.mojang.datafixers.util.Either.left(presentation(recipe).id) : com.mojang.datafixers.util.Either.right(recipe));
-    }
+    @Override public ResourceLocation getRegistryName(T recipe) { return additions.contains(recipe) ? new ResourceLocation(presentation(recipe).id) : original.getRegistryName(recipe); }
     @Override public boolean isHandled(T recipe) {
         if (additions.contains(recipe)) return !records.get(recipe).hidden;
         if (!original.isHandled(recipe)) return false;
@@ -181,7 +164,7 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
             catch (RuntimeException error) { preserveOriginal(recipe, error); }
         }
         if (VjceJeiPlugin.runtime != null && !slots.isEmpty() && !captureFailures.contains(recipe)) {
-            try { slotSessions.put(slots.getFirst(), new java.lang.ref.WeakReference<>(session(recipe, focuses))); }
+            try { slotSessions.put(slots.get(0), new java.lang.ref.WeakReference<>(session(recipe, focuses))); }
             catch (RuntimeException error) { preserveOriginal(recipe, error); }
         }
         original.onDisplayedIngredientsUpdate(recipe, slots, focuses);

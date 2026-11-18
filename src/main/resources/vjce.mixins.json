@@ -2,14 +2,13 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.pureneko.vjce.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_17",
   "client": [
     "CategoryRegistrationMixin",
     "RecipeTransferMixin",
     "RecipeLayoutAccess",
     "TextWidgetAccess",
     "RecipeSlotMixin",
-    "CanvasKeyboardMixin",
     "PonderClockMixin",
     "GuiDrawingMixin",
     "MekCategoryMixin",
@@ -18,14 +17,11 @@
     "TooltipAccess",
     "MekChildMixin",
     "EntityDispatcherAccess",
-    "SceneAnimationMixin",
     "ShaderSamplerAccess",
-    "SceneVisualLayerMixin",
-    "ShaderLightsAccess",
-    "SceneBlockModelsMixin",
-    "SceneBlockEntityMixin"
+    "ShaderLightsAccess"
   ],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "refmap": "vjce.refmap.json"
 }
