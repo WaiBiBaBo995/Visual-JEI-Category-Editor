@@ -28,6 +28,9 @@ final class IngredientPicker {
         open(parent, "vjce.choose_ingredient", new ArrayList<>(IngredientAccess.manager.getRegisteredIngredientTypes()), true, false,
                 ingredient -> true, chosen);
     }
+    static void openType(UIElement parent, IIngredientType<?> type, Consumer<ITypedIngredient<?>> chosen) {
+        open(parent, "vjce.choose_ingredient", List.of(type), false, false, ingredient -> true, chosen);
+    }
 
     static void openBlocks(UIElement parent, Predicate<ItemStack> eligible, Consumer<ItemStack> chosen) {
         openItems(parent, "vjce.asset.from_jei", eligible, false, chosen);
@@ -112,7 +115,7 @@ final class IngredientPicker {
         });
         if (selectType) modal.addContent(type);
         modal.addContent(search).addContent(count).addContent(grid);
-        modal.addButton(new Button().setText("vjce.close").setOnClick(e -> modal.close()));
+        modal.addButton(new Button().setText("vjce.close").setOnClick(e -> modal.close()).setId("vjce_ingredient_close"));
         modal.show(parent.getModularUI()); search.show();
         if (!types.isEmpty()) type.setSelected(types.getFirst(), true);
     }

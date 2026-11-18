@@ -8,12 +8,15 @@ import com.pureneko.vjce.data.*;
 import com.pureneko.vjce.integration.IngredientAccess;
 import dev.vfyjxf.taffy.style.FlexDirection;
 import mezz.jei.api.ingredients.IIngredientType;
+import net.minecraft.network.chat.Component;
 import java.lang.reflect.*;
 import java.util.*;
 import java.util.function.*;
 
 /** Structured forms, including nested lists; raw ingredient codec data is an optional advanced field. */
 final class Forms {
+    static final List<String> ROLES = List.of("INPUT", "OUTPUT", "CATALYST", "RENDER_ONLY");
+    static final List<String> BINDING_PROPERTIES = List.of("text", "progress", "visible", "color");
     private Forms() {}
     static UIElement column() { return new UIElement().layout(l -> { l.widthPercent(100); l.paddingAll(3); }); }
     static UIElement row() { return new UIElement().layout(l -> { l.widthPercent(100); l.flexDirection(FlexDirection.ROW); l.height(20); }); }
@@ -29,6 +32,20 @@ final class Forms {
         row.addChild(text(value, changed).layout(l -> l.minWidth(0)));
         root.addChild(row);
     }
+    static Selector<String> choice(UIElement root, String name, List<String> candidates, String value,
+                                   Function<String, Component> label, Consumer<String> changed) {
+        var row = row();
+        row.addChild(new Label().setText(name).layout(l -> { l.widthPercent(35); l.maxWidth(85); l.flexShrink(0); }));
+        var values = new ArrayList<>(candidates);
+        if (!values.contains(value)) values.add(value);
+        var selector = new Selector<String>().setCandidates(values).setSelected(value, false);
+        selector.setCandidateUIProvider(v -> new Label().setText(candidates.contains(v) ? label.apply(v)
+                : Component.translatable("vjce.choice.unavailable", v)));
+        selector.setOnValueChanged(v -> { if (candidates.contains(v)) changed.accept(v); });
+        selector.layout(l -> { l.flex(1); l.height(18); l.minWidth(0); });
+        row.addChild(selector); root.addChild(row);
+        return selector;
+    }
     static void object(UIElement root, Object object, Runnable refresh, Runnable changed, Set<String> exclude) {
         for (var field : object.getClass().getFields()) {
             if (Modifier.isStatic(field.getModifiers()) || exclude.contains(field.getName())) continue;
@@ -37,6 +54,17 @@ final class Forms {
                 String label = "vjce.field." + field.getName();
                 if (field.getType() == boolean.class) {
                     root.addChild(new Toggle().setText(label).setOn((boolean) value, false).setOnToggleChanged(v -> set(field, object, v, changed)));
+                } else if (object instanceof CategoryDocument.Slot && field.getName().equals("role")) {
+                    choice(root, label, ROLES, (String) value, v -> Component.translatable("vjce.role." + v),
+                            v -> set(field, object, v, changed)).setId("edit_role");
+                } else if (object instanceof CategoryDocument.Binding && field.getName().equals("property")) {
+                    choice(root, label, BINDING_PROPERTIES, (String) value, v -> Component.translatable("vjce.binding." + v),
+                            v -> set(field, object, v, changed)).setId("edit_property");
+                } else if (field.getType().isEnum()) {
+                    choice(root, label, Arrays.stream(field.getType().getEnumConstants()).map(v -> ((Enum<?>) v).name()).toList(),
+                            ((Enum<?>) value).name(), Component::literal,
+                            v -> Arrays.stream(field.getType().getEnumConstants()).filter(e -> ((Enum<?>) e).name().equals(v))
+                                    .findFirst().ifPresent(e -> set(field, object, e, changed))).setId("edit_" + field.getName());
                 } else if (field.getType() == String.class || field.getType().isPrimitive()) {
                     line(root, label, String.valueOf(value), str -> {
                         try {
@@ -103,7 +131,8 @@ final class Forms {
         registerGhost(slot, typed -> replace.accept(IngredientAccess.encode(typed)));
         root.addChild(slot);
         root.addChild(new Button().setText("vjce.choose_ingredient").setOnClick(e -> IngredientPicker.open(root, typed -> replace.accept(IngredientAccess.encode(typed)))).setId("vjce_choose_ingredient"));
-        object(root, ingredient, refresh, changed, Set.of("data"));
+        ingredientType(root, ingredient, replace);
+        object(root, ingredient, refresh, changed, Set.of("data", "type"));
         if (ingredient.data != null && !ingredient.data.isJsonNull()) {
             var advanced = new StructuredTagEditor().setAny();
             advanced.layout(l -> { l.widthPercent(100); l.height(150); });
@@ -112,6 +141,29 @@ final class Forms {
             var body = column(); body.setDisplay(false); body.addChild(advanced);
             root.addChildren(new Button().setText("vjce.ingredient.advanced").setOnClick(e -> body.setDisplay(!body.isDisplayed())), body);
         }
+    }
+    static String ingredientType(CategoryDocument.Ingredient ingredient) {
+        if (ingredient.type != null && !ingredient.type.isBlank()) return ingredient.type;
+        if (!ingredient.fluid.isBlank()) return mezz.jei.api.neoforge.NeoForgeTypes.FLUID_STACK.getUid();
+        if (!ingredient.item.isBlank() || !ingredient.tag.isBlank()) return mezz.jei.api.constants.VanillaTypes.ITEM_STACK.getUid();
+        return "";
+    }
+    private static void ingredientType(UIElement root, CategoryDocument.Ingredient ingredient, Consumer<CategoryDocument.Ingredient> replace) {
+        String current = ingredientType(ingredient);
+        var types = IngredientAccess.manager == null ? List.<IIngredientType<?>>of()
+                : new ArrayList<>(IngredientAccess.manager.getRegisteredIngredientTypes());
+        var candidates = new ArrayList<>(types.stream().map(IIngredientType::getUid).toList());
+        if (current.isEmpty()) candidates.addFirst("");
+        var selector = choice(root, "vjce.field.type", candidates, current,
+                v -> v.isEmpty() ? Component.translatable("vjce.choice.automatic") : Component.literal(v), v -> {});
+        selector.setId("edit_type");
+        selector.setOnValueChanged(uid -> {
+            // The document changes only after a matching ingredient is chosen.
+            selector.setSelected(current, false);
+            if (uid.equals(current)) return;
+            types.stream().filter(t -> t.getUid().equals(uid)).findFirst().ifPresent(type ->
+                    IngredientPicker.openType(root, type, typed -> replace.accept(IngredientAccess.encode(typed))));
+        });
     }
     @SuppressWarnings({"rawtypes", "unchecked"})
     static void registerGhost(UIElement slot, Consumer<mezz.jei.api.ingredients.ITypedIngredient<?>> changed) {

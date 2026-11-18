@@ -192,5 +192,11 @@
   "vjce.video.material_1": "Enrichment x1",
   "vjce.video.material_2": "Smelter x1",
   "vjce.video.material_3": "Fluid tank x2",
-  "vjce.video.material_4": "Blackstone x3"
+  "vjce.video.material_4": "Blackstone x3",
+  "vjce.choice.unavailable": "%s (unavailable)",
+  "vjce.choice.automatic": "Automatic",
+  "vjce.binding.text": "Text",
+  "vjce.binding.progress": "Progress",
+  "vjce.binding.visible": "Visibility",
+  "vjce.binding.color": "Color"
 }

@@ -7,5 +7,11 @@
   "vjce.video.material_1": "富集倉 ×1",
   "vjce.video.material_2": "冶煉爐 ×1",
   "vjce.video.material_3": "流體儲罐 ×2",
-  "vjce.video.material_4": "黑石磚 ×3"
+  "vjce.video.material_4": "黑石磚 ×3",
+  "vjce.choice.unavailable": "%s（無法使用）",
+  "vjce.choice.automatic": "自動",
+  "vjce.binding.text": "文字",
+  "vjce.binding.progress": "進度",
+  "vjce.binding.visible": "顯示狀態",
+  "vjce.binding.color": "色彩"
 }
