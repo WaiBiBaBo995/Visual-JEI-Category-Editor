@@ -65,6 +65,13 @@
 
 ### 安装
 
+两个版本按分支独立维护，安装时请选择对应 Minecraft 版本的 JAR 和前置：
+
+| Minecraft | 加载器 / Java | 源码与说明 |
+| --- | --- | --- |
+| 1.21.1 | NeoForge / Java 21 | `main` 分支，下表介绍此版本 |
+| 1.20.1 | Forge / Java 17 | [forge-1.20.1 分支](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/forge-1.20.1) |
+
 使用 **Minecraft 1.21.1 + Java 21 + NeoForge**，将 VJCE 的模组 JAR
 及两个必需前置放入客户端实例的 `mods/` 文件夹。源码 JAR 不用于安装。
 
@@ -99,6 +106,10 @@ MBD2 是编辑器交互的参考项目，无需安装。
 
 想先体验一个现成分类？将 [examples/](examples/) 内的 `config/` 复制到实例根目录，
 然后进入世界。此示例只演示 JEI 展示，不注册实际合成配方。
+
+原料类型从当前 JEI 注册列表选择；切换类型后选择对应原料才会替换数据，关闭选择器会保留原值。
+未加载模组的旧类型显示为“不可用”，仍保留其原始数据。槽位角色、绑定属性及枚举参数使用列表选择；
+名称、物品／流体 ID、表达式和 NBT 等字段继续按各自用途编辑。
 
 ### 常用操作
 
@@ -156,6 +167,9 @@ MBD2 是编辑器交互的参考项目，无需安装。
 
 # 游戏内 UI 验证
 .\gradlew.bat runClient -PuiTest
+
+# 原料类型与固定选项专项验证
+.\gradlew.bat runClient -PuiTest=vjce_choices
 ```
 
 ```bash
@@ -219,6 +233,13 @@ Development and validation versions are listed in Installation below.
 
 ### Installation
 
+The two versions are maintained on separate branches. Choose the JAR and dependencies for your Minecraft version:
+
+| Minecraft | Loader / Java | Source and instructions |
+| --- | --- | --- |
+| 1.21.1 | NeoForge / Java 21 | `main` branch; documented below |
+| 1.20.1 | Forge / Java 17 | [forge-1.20.1 branch](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/forge-1.20.1) |
+
 Use **Minecraft 1.21.1, Java 21 and NeoForge**. Place the VJCE mod JAR and both
 required dependencies in the client's `mods/` folder. Do not install the sources JAR.
 
@@ -259,6 +280,11 @@ MBD2 inspired the editor workflow and is not a dependency.
 To try the included category, copy the `config/` folder from [examples/](examples/)
 into your instance root before entering a world.
 The example provides JEI display data; it does not register a crafting recipe.
+
+Ingredient types are selected from the current JEI registry. A type change opens a picker for that type;
+choosing a result replaces the complete ingredient, while cancelling preserves the original. Unavailable
+types keep their stored data and display an unavailable label. Slot roles, binding properties and enum
+parameters use dropdowns; names, item/fluid IDs, expressions and NBT retain their existing editors.
 
 ### Controls
 

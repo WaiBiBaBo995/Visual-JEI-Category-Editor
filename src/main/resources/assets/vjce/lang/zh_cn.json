@@ -192,5 +192,11 @@
   "vjce.video.material_1": "富集仓 ×1",
   "vjce.video.material_2": "冶炼炉 ×1",
   "vjce.video.material_3": "流体罐 ×2",
-  "vjce.video.material_4": "黑石砖 ×3"
+  "vjce.video.material_4": "黑石砖 ×3",
+  "vjce.choice.unavailable": "%s（不可用）",
+  "vjce.choice.automatic": "自动",
+  "vjce.binding.text": "文字",
+  "vjce.binding.progress": "进度",
+  "vjce.binding.visible": "可见性",
+  "vjce.binding.color": "颜色"
 }
