@@ -16,9 +16,6 @@ public record GuardedTransferHandler<C extends AbstractContainerMenu, R>(IRecipe
     private IRecipeTransferError blocked() {
         return new mezz.jei.library.transfer.RecipeTransferErrorTooltip(Component.translatable("vjce.transfer.display_only"));
     }
-    @Override public IRecipeTransferError transferRecipe(IRecipeTransferContext<R, C> context, boolean doTransfer) {
-        return category.blocksTransfer(context.getRecipe()) ? blocked() : original.transferRecipe(context, doTransfer);
-    }
     @Override @SuppressWarnings("removal")
     public IRecipeTransferError transferRecipe(C container, R recipe, IRecipeSlotsView slots, Player player, boolean max, boolean execute) {
         return category.blocksTransfer(recipe) ? blocked() : original.transferRecipe(container, recipe, slots, player, max, execute);

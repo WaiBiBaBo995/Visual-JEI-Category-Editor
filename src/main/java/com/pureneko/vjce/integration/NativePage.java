@@ -1,12 +1,12 @@
 package com.pureneko.vjce.integration;
 
-import com.lowdragmc.lowdraglib2.gui.ui.*;
-import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
+import com.pureneko.vjce.client.canvas.*;
+import com.pureneko.vjce.client.canvas.CanvasContext;
 import com.pureneko.vjce.client.NativePartElement;
 import com.pureneko.vjce.client.IngredientSlot;
 import com.pureneko.vjce.data.CategoryDocument;
 import com.pureneko.vjce.mixin.*;
-import dev.vfyjxf.taffy.style.TaffyPosition;
+
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.*;
 import mezz.jei.api.gui.widgets.*;
@@ -22,7 +22,7 @@ import java.util.*;
 /** A live, focus-specific original JEI layout. Only element identities/placements go into the template. */
 @SuppressWarnings({"rawtypes", "unchecked", "removal"})
 public final class NativePage {
-    private static final Map<UIElement, NativePage> CONTEXTS = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<CanvasElement, NativePage> CONTEXTS = Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<String, Object> PREVIEWS = new LinkedHashMap<>(64, 0.75f, true) {
         @Override protected boolean removeEldestEntry(Map.Entry<String, Object> eldest) { return size() > 512; }
     };
@@ -33,7 +33,7 @@ public final class NativePage {
     public final RecipeLayoutAccess access;
     public final Map<String, Part> parts = new LinkedHashMap<>();
     public final NativeDrawing drawing = new NativeDrawing();
-    private java.lang.ref.WeakReference<UIElement> drawingRoot=new java.lang.ref.WeakReference<>(null);
+    private java.lang.ref.WeakReference<CanvasElement> drawingRoot=new java.lang.ref.WeakReference<>(null);
     public final List<IRecipeWidget> unknown = new ArrayList<>();
     private final List<Integer> slotIndices = new ArrayList<>();
     private boolean runtime;
@@ -54,28 +54,31 @@ public final class NativePage {
                 .orElseThrow();
         layout.setPosition(0, 0);
         access = (RecipeLayoutAccess) layout;
+        // Recent JEI 15 releases create extras lazily. Discover them before capturing
+        // widgets and checking whether any source widgets own recipe slots.
+        tickOnce();
         if (capture) {
             var captured = CapturedCategory.capture(original, recipe, focuses);
             for (int i = 0; i < captured.slots.size(); i++) if (!captured.slots.get(i).invisible) slotIndices.add(i);
         } else for (int i = 0; i < access.vjce$slots().size(); i++) slotIndices.add(i);
-        access.vjce$createExtras();
+
         if (!capture) { readOnly = true; return; }
         if (layout.getRecipeSlotsView().getSlotViews().stream().filter(IRecipeSlotDrawable.class::isInstance)
                 .anyMatch(slot -> !access.vjce$slots().contains(slot))) throw new UnsupportedLayout();
         MekElements.discover(original, drawing);
         var counts = new HashMap<String, Integer>();
         for (IRecipeWidget widget : access.vjce$widgets()) {
-            if (!(widget instanceof ITextWidget) && !(widget instanceof IDrawableWidget)) { unknown.add(widget); continue; }
-            String name = widget instanceof ITextWidget ? "text" : "drawable";
+            if (!(widget instanceof ITextWidget)) { unknown.add(widget); continue; }
+            String name = "text";
             if (widget instanceof TextWidgetAccess text && !text.vjce$text().isEmpty()) {
-                var content = text.vjce$text().getFirst();
+                var content = text.vjce$text().get(0);
                 if (content instanceof Component component && component.getContents() instanceof TranslatableContents translated)
                     name = "text_" + translated.getKey().replaceAll("[^A-Za-z0-9_]", "_");
             }
             int number = counts.merge(name, 1, Integer::sum) - 1;
             String key = "jei_" + name + "_" + number;
-            int w = widget instanceof ITextWidget text ? text.getWidth() : ((IDrawableWidget) widget).getWidth();
-            int h = widget instanceof ITextWidget text ? text.getHeight() : ((IDrawableWidget) widget).getHeight();
+            int w = ((ITextWidget)widget).getWidth();
+            int h = ((ITextWidget)widget).getHeight();
             parts.put(key, new Part(key, widget, widget.getPosition().x(), widget.getPosition().y(), Math.max(1, w), Math.max(1, h), name));
         }
     }
@@ -83,14 +86,16 @@ public final class NativePage {
     public static void remember(IRecipeCategory original, Object recipe, CategoryDocument.Recipe data) {
         PREVIEWS.put(original.getRecipeType().getUid() + "|" + data.source, recipe);
     }
+    public static boolean isPreview(String category,String source,Object recipe) {
+        return !source.isBlank() && PREVIEWS.get(category + "|" + source) == recipe;
+    }
     public static NativePage create(IRecipeCategory original, Object raw, CategoryDocument document, CategoryDocument.Recipe data, IFocusGroup focuses, boolean runtime) {
         Object displayed = raw;
         var before = CapturedCategory.capture(original, raw, focuses);
         boolean metadataChanged = data.duration != before.duration || !before.values.entrySet().containsAll(data.values.entrySet());
-        if (VanillaDisplays.supports(original.getRecipeType().getUid()) && metadataChanged && ((raw instanceof RecipeHolder<?> holder && holder.value() instanceof AbstractCookingRecipe)
+        if (VanillaDisplays.supports(original.getRecipeType().getUid()) && metadataChanged && ((raw instanceof AbstractCookingRecipe)
                 || raw instanceof mezz.jei.api.recipe.vanilla.IJeiFuelingRecipe
-                || raw instanceof mezz.jei.api.recipe.vanilla.IJeiCompostingRecipe
-                || raw instanceof mezz.jei.api.recipe.vanilla.IJeiGrindstoneRecipe)) {
+                || raw instanceof mezz.jei.api.recipe.vanilla.IJeiCompostingRecipe)) {
             var changed = com.pureneko.vjce.data.ProjectStore.JSON.fromJson(com.pureneko.vjce.data.ProjectStore.JSON.toJson(before), CategoryDocument.Recipe.class);
             changed.duration = data.duration; changed.values.putAll(data.values);
             displayed = VanillaDisplays.create(original.getRecipeType().getUid(), changed);
@@ -109,7 +114,7 @@ public final class NativePage {
             raw = VjceJeiPlugin.runtime.getRecipeManager().createRecipeLookup(original.getRecipeType()).includeHidden().get()
                     .filter(r -> data.source.equals(String.valueOf(original.getRegistryName(r)))).findFirst().orElse(null);
             if (raw == null && net.minecraft.client.Minecraft.getInstance().level != null) {
-                var holder = net.minecraft.client.Minecraft.getInstance().level.getRecipeManager().byKey(net.minecraft.resources.ResourceLocation.parse(data.source));
+                var holder = net.minecraft.client.Minecraft.getInstance().level.getRecipeManager().byKey(new net.minecraft.resources.ResourceLocation(data.source));
                 if (holder.isPresent() && original.getRecipeType().getRecipeClass().isInstance(holder.get())) raw = holder.get();
             }
         }
@@ -135,7 +140,7 @@ public final class NativePage {
         int index = slotIndices.indexOf(displayData.sourceSlotIndex(displayData.slots.indexOf(slot)));
         return index >= 0 && index < access.vjce$slots().size() ? access.vjce$slots().get(index) : null;
     }
-    public void bind(UI ui, CategoryDocument document) {
+    public void bind(CanvasUI ui, CategoryDocument document) {
         if (!document.nativeOriginElements.isEmpty()) {
             var reference = templateElements(document);
             for (var child : reference.getChildren().stream().toList()) {
@@ -145,24 +150,24 @@ public final class NativePage {
                 }
             }
         }
-        // allowHitTest is runtime state and is not carried by UITemplate serialization.
+        // allowHitTest is runtime state and is not carried by CanvasTemplate serialization.
         ui.rootElement.select("*").filter(NativePartElement.class::isInstance).map(NativePartElement.class::cast)
                 .filter(part -> part.part.equals("overlay")).forEach(part -> part.setAllowHitTest(false));
         for(String key:List.of("native_layer","native_overlay")){var layer=part(ui.rootElement,key);if(layer!=null){layer.sourceWidth=original.getWidth();layer.sourceHeight=original.getHeight();}}
         CONTEXTS.put(ui.rootElement, this); drawingRoot=new java.lang.ref.WeakReference<>(ui.rootElement); drawing.bind(ui, document, runtime);
     }
-    public static NativePage context(UIElement element) { var root = boundRoot(element); return root == null ? null : CONTEXTS.get(root); }
-    public static UIElement boundRoot(UIElement element) {
+    public static NativePage context(CanvasElement element) { var root = boundRoot(element); return root == null ? null : CONTEXTS.get(root); }
+    public static CanvasElement boundRoot(CanvasElement element) {
         for (var current = element; current != null; current = current.getParent()) if (CONTEXTS.containsKey(current)) return current;
         return null;
     }
-    public UITemplate template(CategoryDocument document) {
+    public CanvasTemplate template(CategoryDocument document) {
         var root = templateElements(document);
-        if (!runtime) document.nativeOriginElements = root.select("*").map(UIElement::getId).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-        return com.pureneko.vjce.client.RecipeUI.canvasTemplate(UITemplate.of(root));
+        if (!runtime) document.nativeOriginElements = root.select("*").map(CanvasElement::getId).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        return com.pureneko.vjce.client.RecipeUI.canvasTemplate(CanvasTemplate.of(root));
     }
-    private UIElement templateElements(CategoryDocument document) {
-        var root = new UIElement().layout(l -> { l.width(document.width); l.height(document.height); });
+    private CanvasElement templateElements(CategoryDocument document) {
+        var root = new CanvasElement().layout(l -> { l.width(document.width); l.height(document.height); });
         root.setOverflowVisible(true);
         if (readOnly) return root.addChild(element("native_layer", "page", "Original read-only JEI page", 0, 0, original.getWidth(), original.getHeight()));
         root.addChild(element("native_layer", "native", "JEI source drawing", 0, 0, original.getWidth(), original.getHeight()));
@@ -183,17 +188,17 @@ public final class NativePage {
         element.setOverflowVisible(true);
         element.sourceX=x; element.sourceY=y; element.sourceWidth=width; element.sourceHeight=height;
         if (part.equals("overlay")) element.setAllowHitTest(false);
-        element.layout(l -> { l.positionType(TaffyPosition.ABSOLUTE); l.left(x); l.top(y); l.width(width); l.height(height); });
+        element.layout(l -> {  l.left(x); l.top(y); l.width(width); l.height(height); });
         return element;
     }
-    public static NativePartElement part(UIElement root, String key) { return root.selectId(key, NativePartElement.class).findFirst().orElse(null); }
-    public static boolean visible(UIElement element) {
+    public static NativePartElement part(CanvasElement root, String key) { return root.selectId(key, NativePartElement.class).findFirst().orElse(null); }
+    public static boolean visible(CanvasElement element) {
         for (var current = element; current != null; current = current.getParent())
-            if (!current.isDisplayed() || !current.isVisible() || current.getStyle().opacity() <= 0) return false;
+            if (!current.isDisplayed() || !current.isVisible() || current.opacity <= 0) return false;
         return element != null;
     }
-    public static int x(UIElement root, UIElement element) { return Math.round(element.getContentX() - root.getContentX()); }
-    public static int y(UIElement root, UIElement element) { return Math.round(element.getContentY() - root.getContentY()); }
+    public static int x(CanvasElement root, CanvasElement element) { return Math.round(element.getContentX() - root.getContentX()); }
+    public static int y(CanvasElement root, CanvasElement element) { return Math.round(element.getContentY() - root.getContentY()); }
     public void tickOnce() {
         long now = net.minecraft.Util.getMillis() / 50;
         if (now != lastTick) { lastTick = now; layout.tick(); applyPreviewIngredients(); }
@@ -205,14 +210,14 @@ public final class NativePage {
             if (index >= 0) access.vjce$slots().get(i).createDisplayOverrides().addOptionalTypedIngredients(IngredientAccess.decodeChoices(displayData.slots.get(index)));
         }
     }
-    public void drawElement(NativePartElement element, GUIContext context) {
+    public void drawElement(NativePartElement element, CanvasContext context) {
         tickOnce();
         var root = boundRoot(element); if (root == null) return;
         var graphics = context.graphics;
-        double mouseX = context.localMouseX - element.getContentX(), mouseY = context.localMouseY - element.getContentY();
+        double mouseX = context.localMouseX, mouseY = context.localMouseY;
         graphics.flush(); graphics.pose().pushPose();
-        try {
-            graphics.pose().translate(element.getContentX(), element.getContentY(), 0);
+        try(var state=new com.pureneko.vjce.client.SceneRenderState()) {
+
             if (element.part.equals("page")) {
                 graphics.pose().scale(element.getContentWidth() / Math.max(1, original.getWidth()), element.getContentHeight() / Math.max(1, original.getHeight()), 1);
                 layout.drawRecipe(graphics, (int) (mouseX * original.getWidth() / Math.max(1, element.getContentWidth())), (int) (mouseY * original.getHeight() / Math.max(1, element.getContentHeight())));
@@ -231,7 +236,7 @@ public final class NativePage {
                     var area = slot.getRect();
                     graphics.pose().scale(element.getContentWidth() / Math.max(1, area.getWidth()), element.getContentHeight() / Math.max(1, area.getHeight()), 1);
                     graphics.pose().translate(-area.getX(), -area.getY(), 0);
-                    slot.draw(graphics, element.isHover());
+                    slot.draw(graphics);
                 } else if (displayData != null) {
                     var data = displayData.boundSlot(element.getId());
                     if (data != null) {
@@ -239,8 +244,8 @@ public final class NativePage {
                         graphics.pose().scale(element.getContentWidth() / 16, element.getContentHeight() / 16, 1);
                         background.draw(graphics, -1, -1);
                         var ingredients = IngredientAccess.decode(data);
-                        if (!ingredients.isEmpty()) IngredientSlot.drawIngredient(graphics, ingredients.getFirst(), 0, 0, 16, 16,
-                                data.ingredients.getFirst().amount);
+                        if (!ingredients.isEmpty()) IngredientSlot.drawIngredient(graphics, ingredients.get(0), 0, 0, 16, 16,
+                                data.ingredients.get(0).amount);
                     }
                 }
             } else {
@@ -258,7 +263,8 @@ public final class NativePage {
             var replacement = new TextWidget(element.replacementText.isEmpty() ? text.vjce$text() : List.of(Component.literal(element.replacementText)), 0, 0, part.width, part.height);
             replacement.setFont(text.vjce$font()); replacement.setShadow(text.vjce$shadow()); replacement.setLineSpacing(text.vjce$spacing());
             replacement.setTextAlignment(text.vjce$horizontal()); replacement.setTextAlignment(text.vjce$vertical());
-            if (element.overrideTextColor) replacement.setColor(element.textColor); else if (text.vjce$color() != null) replacement.setColor(text.vjce$color());
+            Integer color = element.overrideTextColor ? Integer.valueOf(element.textColor) : JeiTextColor.get((TextWidget) part.widget);
+            if (color != null) replacement.setColor(color);
             return replacement;
         }
         return part.widget;

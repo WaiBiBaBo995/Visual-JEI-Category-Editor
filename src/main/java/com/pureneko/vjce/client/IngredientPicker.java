@@ -1,130 +1,88 @@
 package com.pureneko.vjce.client;
-
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.*;
-import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
-import com.lowdragmc.lowdraglib2.editor.resource.Resource;
-import com.lowdragmc.lowdraglib2.editor.ui.resource.ResourceProviderContainer;
+import com.lowdragmc.lowdraglib.gui.widget.*;
+import com.lowdragmc.lowdraglib.gui.texture.ColorRectTexture;
+import com.lowdragmc.lowdraglib.gui.texture.TextTexture;
 import com.pureneko.vjce.integration.IngredientAccess;
-import com.pureneko.vjce.integration.VjceJeiPlugin;
-import dev.vfyjxf.taffy.style.FlexDirection;
-import mezz.jei.api.ingredients.*;
-import mezz.jei.api.constants.VanillaTypes;
-import net.minecraft.client.Minecraft;
+import com.pureneko.vjce.integration.JeiIngredientSearch;
+import com.pureneko.vjce.VisualJeiCategoryEditor;
+import com.lowdragmc.lowdraglib.utils.Position;
+import com.lowdragmc.lowdraglib.utils.Size;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.Item;
+import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.ingredients.*;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
 import java.util.*;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-
-/** SearchComponent input with an external row-virtualized resource grid; helpers stay on the UI thread. */
+import java.util.function.*;
 final class IngredientPicker {
-    private IngredientPicker() {}
-    private record Entry(ITypedIngredient<?> ingredient, String name, String id, String search) {}
-    static void open(UIElement parent, Consumer<ITypedIngredient<?>> chosen) {
-        if (IngredientAccess.manager == null) return;
-        open(parent, "vjce.choose_ingredient", new ArrayList<>(IngredientAccess.manager.getRegisteredIngredientTypes()), true, false,
-                ingredient -> true, chosen);
-    }
-    static void openType(UIElement parent, IIngredientType<?> type, Consumer<ITypedIngredient<?>> chosen) {
-        open(parent, "vjce.choose_ingredient", List.of(type), false, false, ingredient -> true, chosen);
-    }
+    static void open(WidgetGroup parent,Consumer<ITypedIngredient<?>> selected){show(parent,t->true,selected);}
+    static void openType(WidgetGroup parent,IIngredientType<?> type,Consumer<ITypedIngredient<?>> selected){show(parent,t->t.getType()==type,selected);}
+    static void openCatalysts(WidgetGroup parent,Consumer<ItemStack> selected){show(parent,t->t.getType()==VanillaTypes.ITEM_STACK,t->selected.accept((ItemStack)t.getIngredient()));}
+    static void openBlocks(WidgetGroup parent,Predicate<ItemStack> filter,Consumer<ItemStack> selected){show(parent,t->t.getType()==VanillaTypes.ITEM_STACK&&filter.test((ItemStack)t.getIngredient()),t->selected.accept(((ItemStack)t.getIngredient()).copy()));}
+    static ITypedIngredient<?> typed(Object o){if(o instanceof ITypedIngredient<?> typed)return typed;if(o instanceof ItemStack stack&&IngredientAccess.manager!=null)return IngredientAccess.manager.createTypedIngredient(VanillaTypes.ITEM_STACK,stack).orElse(null);return null;}
+    private static void show(WidgetGroup origin,Predicate<ITypedIngredient<?>> filter,Consumer<ITypedIngredient<?>> selected){new PickerDialog(origin,filter,selected);}
 
-    static void openBlocks(UIElement parent, Predicate<ItemStack> eligible, Consumer<ItemStack> chosen) {
-        openItems(parent, "vjce.asset.from_jei", eligible, false, chosen);
-    }
+    /** Only the result grid scrolls; search, status and navigation stay reachable at every GUI scale. */
+    static final class PickerDialog extends DialogWidget {
+        private static final int PAGE_SIZE=40;
+        final WidgetGroup panel=new WidgetGroup();
+        final Forms.Form results=new Forms.Form(3,84,360,180);
+        final TextFieldWidget search;
+        final LabelWidget status=new LabelWidget(3,68,"");
+        final ButtonWidget previous,next,close;
+        final LabelWidget title=new LabelWidget(3,3,"vjce.picker.search");
+        private final Predicate<ITypedIngredient<?>> filter;
+        private final Consumer<ITypedIngredient<?>> selected;
+        List<ITypedIngredient<?>> values=List.of();
+        int page;
+        private boolean searchFailed;
 
-    static void openCatalysts(UIElement parent, Consumer<ItemStack> chosen) {
-        openItems(parent, "vjce.field.catalysts", stack -> true, true, chosen);
-    }
-
-    private static void openItems(UIElement parent, String title, Predicate<ItemStack> eligible, boolean details, Consumer<ItemStack> chosen) {
-        var runtime = VjceJeiPlugin.runtime;
-        if (runtime == null || IngredientAccess.manager == null) {
-            Dialog.showNotification(title, "vjce.asset.jei_unavailable", null).show(parent.getModularUI());
-            return;
+        PickerDialog(WidgetGroup origin,Predicate<ITypedIngredient<?>> filter,Consumer<ITypedIngredient<?>> selected){
+            super(origin.getGui().mainGroup,true);this.filter=filter;this.selected=selected;
+            setBackground(new ColorRectTexture(0xdd222222));
+            panel.setBackground(new ColorRectTexture(Forms.BG));addWidget(panel);panel.addWidget(title);
+            search=Forms.text(3,18,360,"",this::search);
+            search.setHoverTooltips("vjce.picker.syntax");title.setHoverTooltips("vjce.picker.syntax");panel.addWidget(search);
+            previous=Forms.button(3,44,110,"vjce.previous",()->changePage(-1));
+            next=Forms.button(120,44,110,"vjce.next",()->changePage(1));
+            close=Forms.button(240,44,110,"vjce.close",this::close);
+            panel.addWidget(results);panel.addWidget(status);panel.addWidget(previous);panel.addWidget(next);panel.addWidget(close);
+            resizeContent();search("");
         }
-        var visibility = runtime.getJeiHelpers().getIngredientVisibility();
-        open(parent, title, List.of(VanillaTypes.ITEM_STACK), false, details,
-                ingredient -> ingredient.getItemStack().filter(eligible)
-                        .filter(stack -> visibility.isIngredientVisible(VanillaTypes.ITEM_STACK, stack)).isPresent(),
-                ingredient -> ingredient.getItemStack().ifPresent(chosen));
-    }
 
-    static Component[] itemTooltip(ItemStack stack, String id) {
-        var minecraft = Minecraft.getInstance();
-        var renderer = IngredientAccess.manager.getIngredientRenderer(VanillaTypes.ITEM_STACK);
-        var lines = new ArrayList<>(renderer.getTooltip(stack, Item.TooltipContext.of(minecraft.level), minecraft.player, TooltipFlag.NORMAL));
-        lines.add(Component.literal(id));
-        return lines.toArray(Component[]::new);
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static void open(UIElement parent, String title, List<IIngredientType<?>> types, boolean selectType, boolean details,
-                             Predicate<ITypedIngredient<?>> eligible, Consumer<ITypedIngredient<?>> chosen) {
-        if (parent.getModularUI() == null) return;
-        var modal = new Dialog().setTitle(title); modal.setId("vjce_ingredient_dialog");
-        modal.overlay.layout(l -> { l.width(480); l.maxWidthPercent(95); });
-        var grid = new VirtualScrollerView<List<Entry>>(); grid.setId("vjce_ingredient_grid");
-        grid.layout(l -> { l.widthPercent(100); l.height(230); });
-        grid.virtualScrollerViewStyle(s -> s.itemHeightMode(VirtualItemHeightMode.FIXED).estimatedItemHeight(52).overscanPixels(104));
-        grid.setItemUIProvider(values -> {
-            var row = new UIElement().layout(l -> { l.widthPercent(100); l.height(52); l.flexDirection(FlexDirection.ROW); l.gapAll(3); });
-            for (var entry : values) {
-                var icon = new IngredientSlot(); icon.ingredient = entry.ingredient;
-                icon.layout(l -> { l.width(28); l.height(28); });
-                var cell = ResourceProviderContainer.createResourceCell(Resource.DisplayMode.GRID, 40, icon, entry.name);
-                if (details) entry.ingredient.getItemStack().ifPresent(stack -> cell.style(s -> s.tooltips(itemTooltip(stack, entry.id))));
-                else cell.style(s -> s.tooltips(entry.name, entry.id));
-                cell.addEventListener(UIEvents.CLICK, e -> { if (e.button == 0) { chosen.accept(entry.ingredient); modal.close(); e.stopPropagation(); } });
-                cell.setId("vjce_ingredient_cell"); row.addChild(cell);
+        void search(String text){
+            page=0;searchFailed=false;
+            try{values=JeiIngredientSearch.query(text).stream().filter(filter).toList();}
+            catch(RuntimeException error){values=List.of();searchFailed=true;VisualJeiCategoryEditor.LOG.error("VJCE ingredient picker search failed",error);}
+            search.setTextColor(values.isEmpty()?0xffff6666:0xffffffff);rebuild();
+        }
+        void changePage(int delta){int target=Math.max(0,Math.min(pages()-1,page+delta));if(target!=page){page=target;rebuild();}}
+        int pages(){return Math.max(1,(values.size()+PAGE_SIZE-1)/PAGE_SIZE);}
+        private void rebuild(){
+            results.setScrollYOffset(0);results.clear();
+            int index=0,cellWidth=Math.max(24,results.width()/3);
+            for(var typed:values.stream().skip(page*(long)PAGE_SIZE).limit(PAGE_SIZE).toList()){
+                results.addWidget(new IngredientCell(3+index%3*cellWidth,3+index/3*39,cellWidth-2,typed,()->{close();selected.accept(typed);}));index++;
             }
-            return row;
-        });
-        var entries = new ArrayList<Entry>(); var count = new Label();
-        int[] lastColumns={-1};
-        var search = new GridSearch(word -> {
-            String query = word.toLowerCase(Locale.ROOT).trim();
-            var matches = entries.stream().filter(e -> e.search.contains(query)).toList();
-            int columns = Math.max(1, (int) (Math.max(200, grid.getContentWidth()) / 49));
-            lastColumns[0]=columns;
-            var rows = new ArrayList<List<Entry>>();
-            for (int i = 0; i < matches.size(); i += columns) rows.add(matches.subList(i, Math.min(matches.size(), i + columns)));
-            grid.setItems(rows); grid.scrollToTop(); count.setText(Integer.toString(matches.size()));
-        });
-        grid.addEventListener(UIEvents.LAYOUT_CHANGED,e->{int columns=Math.max(1,(int)(Math.max(200,grid.getContentWidth())/49));if(columns!=lastColumns[0])search.search();});
-        search.textField.setId("vjce_ingredient_search_text");
-        search.setId("vjce_ingredient_search"); search.layout(l -> { l.widthPercent(100); l.height(20); });
-        var type = new Selector<IIngredientType<?>>().setCandidates(types);
-        type.setId("vjce_ingredient_type"); type.layout(l -> { l.widthPercent(100); l.height(20); });
-        type.setCandidateUIProvider(value -> new Label().setText(value == null ? "" : value.getUid()));
-        type.setOnValueChanged(selected -> {
-            entries.clear();
-            if (selected != null) {
-                IIngredientType rawType = selected; var helper = IngredientAccess.manager.getIngredientHelper(rawType);
-                for (Object value : IngredientAccess.manager.getAllIngredients(rawType)) {
-                    var typed = IngredientAccess.manager.createTypedIngredient(rawType, value, false);
-                    if (typed.isEmpty() || !eligible.test((ITypedIngredient<?>) typed.get())) continue;
-                    String name = helper.getDisplayName(value), id = helper.getResourceLocation(value).toString();
-                    entries.add(new Entry((ITypedIngredient<?>) typed.get(), name, id, (name + " " + id).toLowerCase(Locale.ROOT)));
-                }
-            }
-            search.search();
-        });
-        if (selectType) modal.addContent(type);
-        modal.addContent(search).addContent(count).addContent(grid);
-        modal.addButton(new Button().setText("vjce.close").setOnClick(e -> modal.close()).setId("vjce_ingredient_close"));
-        modal.show(parent.getModularUI()); search.show();
-        if (!types.isEmpty()) type.setSelected(types.getFirst(), true);
+            status.setText(Component.translatable(searchFailed?"vjce.picker.error":values.isEmpty()?"vjce.picker.empty":"vjce.picker.results",values.size(),page+1,pages()).getString());
+            previous.setActive(page>0);next.setActive(page+1<pages());
+        }
+        private void resizeContent(){
+            int w=Math.max(120,Math.min(390,getSize().width-12)),h=Math.max(110,Math.min(300,getSize().height-12));
+            panel.setSelfPosition(new Position((getSize().width-w)/2,(getSize().height-h)/2));panel.setSize(new Size(w,h));
+            search.setSize(new Size(w-6,18));results.setSize(new Size(w-6,h-88));
+            var buttons=List.of(previous,next,close);for(int i=0;i<3;i++){buttons.get(i).setSelfPosition(new Position(3+i*(w-6)/3,44));buttons.get(i).setSize(new Size((w-6)/3-2,18));}
+        }
+        @Override public void onScreenSizeUpdate(int width,int height){super.onScreenSizeUpdate(width,height);setSize(new Size(width,height));resizeContent();int offset=results.getScrollYOffset();rebuild();int rows=(Math.min(PAGE_SIZE,values.size()-page*PAGE_SIZE)+2)/3;results.setScrollYOffset(Math.min(offset,Math.max(0,3+rows*39-results.getSize().height)));}
     }
-    private static final class GridSearch extends SearchComponent<ITypedIngredient<?>> {
-        private Consumer<String> query;
-        GridSearch(Consumer<String> query) { this.query = query; }
-        void search() { if (query != null) query.accept(textField.getValue()); }
-        @Override protected void onSearchWordChanged(String word) { if (query != null) query.accept(word); }
-        @Override public void show() { preview.setDisplay(false); textField.setDisplay(true); search(); }
-        @Override public void hide() {} // The containing modal owns the grid lifetime and focus.
+    static final class IngredientCell extends ButtonWidget {
+        final ITypedIngredient<?> ingredient;
+        private final TextTexture name;
+        @SuppressWarnings({"rawtypes","unchecked"}) IngredientCell(int x,int y,int width,ITypedIngredient<?> ingredient,Runnable choose){
+            super(x,y,width,36,new ColorRectTexture(Forms.INPUT).setRadius(3),c->choose.run());this.ingredient=ingredient;
+            name=new TextTexture(((IIngredientHelper)IngredientAccess.manager.getIngredientHelper(ingredient.getType())).getDisplayName(ingredient.getIngredient())).setWidth(width-4).setType(TextTexture.TextType.ROLL);
+            setHoverBorderTexture(1,0xffaaaaaa);
+        }
+        @Override public void drawInBackground(net.minecraft.client.gui.GuiGraphics g,int mx,int my,float pt){super.drawInBackground(g,mx,my,pt);var p=getPosition();IngredientSlot.drawIngredient(g,ingredient,p.x+(getSize().width-16)/2f,p.y+2,16,16,1);name.draw(g,mx,my,p.x+2,p.y+20,getSize().width-4,12);}
+        @Override @SuppressWarnings({"rawtypes","unchecked","removal"}) public void drawInForeground(net.minecraft.client.gui.GuiGraphics g,int mx,int my,float pt){super.drawInForeground(g,mx,my,pt);if(isMouseOverElement(mx,my)){var renderer=IngredientAccess.manager.getIngredientRenderer((IIngredientType)ingredient.getType());getGui().getModularUIGui().setHoverTooltip(renderer.getTooltip(ingredient.getIngredient(),net.minecraft.world.item.TooltipFlag.Default.NORMAL),ItemStack.EMPTY,null,null);}}
     }
 }

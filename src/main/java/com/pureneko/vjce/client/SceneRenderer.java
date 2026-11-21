@@ -1,91 +1,74 @@
 package com.pureneko.vjce.client;
-
-import com.lowdragmc.lowdraglib2.client.RenderTargetScope;
-import com.lowdragmc.lowdraglib2.client.scene.FBOWorldSceneRenderer;
-import com.lowdragmc.lowdraglib2.math.PositionedRect;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.lowdragmc.lowdraglib.client.scene.FBOWorldSceneRenderer;
+import com.lowdragmc.lowdraglib.utils.TrackedDummyWorld;
+import com.mojang.blaze3d.vertex.*;
 import com.pureneko.vjce.mixin.EntityDispatcherAccess;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.*;
 import net.minecraft.world.level.Level;
-import org.lwjgl.opengl.GL11;
-
-/** Render to a local texture, then let LDLib apply the full GUI transform to all four corners. */
+import java.util.*;
+/** LDLib1 FBO with VJCE-owned models, isolated block-entity rendering, and local entity time. */
 public final class SceneRenderer extends FBOWorldSceneRenderer {
-    private final java.util.Map<net.minecraft.core.BlockPos,net.minecraft.nbt.CompoundTag> transforms=new java.util.HashMap<>();
-    void setBlockTransforms(net.minecraft.nbt.ListTag rows){for(var tag:rows){var row=(net.minecraft.nbt.CompoundTag)tag;transforms.put(new net.minecraft.core.BlockPos(row.getInt("x"),row.getInt("y"),row.getInt("z")),row.copy());}}
-    public void transform(net.minecraft.core.BlockPos pos,com.mojang.blaze3d.vertex.PoseStack pose){var row=transforms.get(pos);if(row!=null)SceneTransforms.block(pose,row);}
-    private boolean cameraActive;
-    private boolean entitiesPlaying;
-    private double entityBudget, entitySpeed;
-    private float heldEntityPartialTick;
-    private final SceneBlockModels blockModels = new SceneBlockModels(this);
-    SceneRenderer(Level world) { super(world, 128, 128); SceneRenderGuard.attach(this); }
-
-    @Override public void setFBOSize(int width, int height) {
-        // RenderTarget.resize binds framebuffer 0; keep resizing inside the current UI surface.
-        boolean depth = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
-        try (var ignored = RenderTargetScope.capture()) { super.setFBOSize(width, height); }
-        finally { if (depth) RenderSystem.enableDepthTest(); else RenderSystem.disableDepthTest(); }
+    private final Map<BlockPos,CompoundTag> transforms=new HashMap<>();
+    private final SceneBlockModels models=new SceneBlockModels(this);
+    SceneEntities entities;
+    List<net.minecraft.world.entity.Entity> previewEntities=List.of();
+    private boolean playing;
+    private float partial;
+    private boolean guiScissor,cameraActive;
+    private final int[] guiScissorBox=new int[4];
+    org.joml.Matrix4f viewProjection;
+    java.util.function.Consumer<net.minecraft.client.renderer.MultiBufferSource> overlay;
+    SceneRenderer(Level world){super(world,128,128);
+        // LDLib1 creates these only when a particle manager is installed.
+        camera=new net.minecraft.client.Camera();cameraEntity=new com.lowdragmc.lowdraglib.client.scene.CameraEntity(world);
+        SceneRenderGuard.attach(this);}
+    void setBlockTransforms(ListTag rows){for(var tag:rows){var row=(CompoundTag)tag;transforms.put(new BlockPos(row.getInt("x"),row.getInt("y"),row.getInt("z")),row.copy());}}
+    public void transform(BlockPos pos,PoseStack pose){var row=transforms.get(pos);if(row!=null)SceneTransforms.block(pose,row);}
+    void entityTime(boolean playing,double budget,double speed){this.playing=playing;if(playing)partial=(float)Math.max(0,Math.min(1,budget+Minecraft.getInstance().getFrameTime()*Math.max(0,Math.min(20,speed))));}
+    public float entityPartialTick(float ignored){return partial;}
+    void verticalOrtho(float range,float displayWidth,float displayHeight,float depth){
+        // LDLib1 divides its Y extent by the framebuffer aspect in setupCamera.
+        setCameraOrtho(range*displayWidth/Math.max(1,displayHeight),range*getResolutionWidth()/getResolutionHeight(),depth);
     }
-
-    void entityTime(boolean playing, double budget, double speed) {
-        entitiesPlaying = playing; entityBudget = budget;
-        entitySpeed = Double.isFinite(speed) ? Math.max(0, Math.min(20, speed)) : 1;
+    @Override public void setFBOSize(int width,int height){try(var target=RenderTargetScope.capture()){super.setFBOSize(width,height);}}
+    @Override public void render(PoseStack pose,float x,float y,float width,float height,float mouseX,float mouseY){
+        var mc=Minecraft.getInstance();var dispatcher=mc.getEntityRenderDispatcher();var a=(EntityDispatcherAccess)dispatcher;
+        var oldLevel=a.vjce$level();var oldCamera=dispatcher.camera;var oldCrosshair=dispatcher.crosshairPickEntity;var oldOrientation=a.vjce$orientation();boolean shadows=a.vjce$shadow(),hitboxes=a.vjce$hitBoxes();
+        try(var state=new SceneRenderState()){
+            guiScissor=org.lwjgl.opengl.GL11.glIsEnabled(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
+            org.lwjgl.opengl.GL11.glGetIntegerv(org.lwjgl.opengl.GL11.GL_SCISSOR_BOX,guiScissorBox);
+            dispatcher.setRenderShadow(false);dispatcher.setRenderHitBoxes(false);
+            try{super.render(pose,x,y,width,height,mouseX,mouseY);}finally{if(cameraActive)resetCamera();}
+        }finally{a.vjce$level(oldLevel);dispatcher.camera=oldCamera;dispatcher.crosshairPickEntity=oldCrosshair;a.vjce$orientation(oldOrientation);dispatcher.setRenderShadow(shadows);dispatcher.setRenderHitBoxes(hitboxes);}
     }
-    /** Called only for this renderer by SceneAnimationMixin; other LDLib scenes keep their clock. */
-    public float entityPartialTick(float nativePartialTick) {
-        if (entitiesPlaying) heldEntityPartialTick = (float) Math.max(0, Math.min(1, entityBudget + nativePartialTick * entitySpeed));
-        return heldEntityPartialTick;
+    @Override protected void setupCamera(com.lowdragmc.lowdraglib.utils.PositionedRect viewport){
+        // GUI scissors use the window's coordinates, not the scene framebuffer's.
+        com.mojang.blaze3d.systems.RenderSystem.disableScissor();super.setupCamera(viewport);cameraActive=true;
     }
-
-    @Override protected void setupCamera(PositionedRect viewport) {
-        super.setupCamera(viewport);
-        cameraActive = true;
+    @Override protected void resetCamera(){
+        super.resetCamera();cameraActive=false;
+        if(guiScissor)com.mojang.blaze3d.systems.RenderSystem.enableScissor(guiScissorBox[0],guiScissorBox[1],guiScissorBox[2],guiScissorBox[3]);
     }
-    @Override protected void resetCamera() {
-        try { super.resetCamera(); } finally { cameraActive = false; }
-    }
-    @Override public void drawScene(float x, float y, float width, float height, float mouseX, float mouseY) {
-        boolean scissor = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
-        int[] box = new int[4]; GL11.glGetIntegerv(GL11.GL_SCISSOR_BOX, box);
-        var target = RenderTargetScope.capture();
-        try { super.drawScene(x, y, width, height, mouseX, mouseY); }
-        finally {
-            try { if (cameraActive) resetCamera(); }
-            finally {
-                target.close();
-                // LDLib changes GL directly; force the state transition to resync GlStateManager's cache.
-                if (scissor) {
-                    RenderSystem.disableScissor(); RenderSystem.enableScissor(box[0], box[1], box[2], box[3]);
-                } else {
-                    RenderSystem.enableScissor(box[0], box[1], box[2], box[3]); RenderSystem.disableScissor();
-                }
+    @Override protected void drawWorld(){
+        var mc=Minecraft.getInstance();mc.getEntityRenderDispatcher().prepare(world,camera,null);var buffers=mc.renderBuffers().bufferSource();
+        viewProjection=new org.joml.Matrix4f(com.mojang.blaze3d.systems.RenderSystem.getProjectionMatrix()).mul(com.mojang.blaze3d.systems.RenderSystem.getModelViewMatrix());
+        try(var light=new SceneLighting()){
+            models.render();
+            var positions=new LinkedHashSet<BlockPos>();renderedBlocksMap.keySet().forEach(positions::addAll);
+            for(var pos:positions){var tile=world.getBlockEntity(pos);if(tile==null)continue;var renderer=mc.getBlockEntityRenderDispatcher().getRenderer(tile);if(renderer==null||!tile.getType().isValid(tile.getBlockState()))continue;
+                var pose=new PoseStack();pose.translate(pos.getX(),pos.getY(),pos.getZ());transform(pos,pose);
+                SceneRenderGuard.get(this).render(this,renderer,tile,pose,buffers,isolated->renderer.render(tile,partial,isolated,buffers,LightTexture.FULL_BRIGHT,OverlayTexture.NO_OVERLAY));
             }
-        }
-    }
-    @Override protected void drawWorld() {
-        var dispatcher = Minecraft.getInstance().getEntityRenderDispatcher();
-        var access = (EntityDispatcherAccess) dispatcher;
-        var previousLevel = access.vjce$level();
-        var previousCamera = dispatcher.camera;
-        var previousCrosshair = dispatcher.crosshairPickEntity;
-        var previousOrientation = access.vjce$orientation();
-        boolean shadow = access.vjce$shadow(), hitBoxes = access.vjce$hitBoxes();
-        try (var lighting = new SceneLighting()) {
-            dispatcher.prepare(world, camera, null);
-            dispatcher.setRenderShadow(false); dispatcher.setRenderHitBoxes(false);
-            try { blockModels.render(); super.drawWorld(); }
-            catch (RuntimeException failure) {
-                // Drain any partial model batches into this FBO before restoring the GUI target.
-                try { Minecraft.getInstance().renderBuffers().bufferSource().endBatch(); }
-                catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
-                throw failure;
+            for(var entity:world instanceof TrackedDummyWorld tracked?tracked.getAllEntities():previewEntities){
+                var pose=new PoseStack();if(entities!=null)entities.applyEntity(world,entity,pose,partial);
+                mc.getEntityRenderDispatcher().render(entity,entity.getX(),entity.getY(),entity.getZ(),entity.getYRot(),partial,pose,buffers,LightTexture.FULL_BRIGHT);
             }
-        } finally {
-            access.vjce$level(previousLevel); dispatcher.camera = previousCamera;
-            dispatcher.crosshairPickEntity = previousCrosshair; access.vjce$orientation(previousOrientation);
-            dispatcher.setRenderShadow(shadow); dispatcher.setRenderHitBoxes(hitBoxes);
-        }
+            if(overlay!=null)overlay.accept(buffers);
+        }finally{buffers.endBatch();}
     }
-    @Override public void releaseResource() { SceneRenderGuard.detach(this); try { blockModels.close(); } finally { super.releaseResource(); } }
+    public void releaseResource(){SceneRenderGuard.detach(this);try{models.close();deleteCacheBuffer();}finally{releaseFBO();}}
 }

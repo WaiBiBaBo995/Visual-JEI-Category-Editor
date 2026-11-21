@@ -5,7 +5,9 @@ import java.util.*;
 
 /** Versioned, client-side presentation data. This is deliberately not a Minecraft recipe. */
 public final class CategoryDocument {
-    public int schemaVersion = 1;
+    public int schemaVersion = 2;
+    public String minecraftVersion = "1.20.1";
+    public String layoutEngine = "vjce-ldlib1";
     public String id = "vjce:example";
     public String title = "Example";
     public String icon = "minecraft:crafting_table";
@@ -13,14 +15,14 @@ public final class CategoryDocument {
     public String target = "";
     public int width = 176;
     public int height = 90;
-    /** UITemplate codec encoded as SNBT, preserving all NBT types and styles. */
+    /** VJCE canvas encoded as SNBT; independent of LDLib2 templates. */
     public String layout = "";
     /** Imported element identities distinguish explicit deletions from recipe-dependent new elements. */
     public List<String> nativeOriginElements = new ArrayList<>();
     public List<Field> fields = new ArrayList<>();
     public List<Binding> bindings = new ArrayList<>();
     public List<Recipe> recipes = new ArrayList<>();
-    /** Legacy item ID strings and item objects with optional data components. */
+    /** Legacy item ID strings and item objects with optional item NBT. */
     public List<JsonElement> catalysts = new ArrayList<>();
 
     public static final class Field {
@@ -123,7 +125,7 @@ public final class CategoryDocument {
     }
 
     public void validate() {
-        if (schemaVersion != 1) throw new IllegalArgumentException("Unsupported schemaVersion: " + schemaVersion);
+        if (schemaVersion != 2 || !"1.20.1".equals(minecraftVersion) || !"vjce-ldlib1".equals(layoutEngine)) throw new IllegalArgumentException("Unsupported schemaVersion: " + schemaVersion);
         checkId(id);
         checkId(icon);
         if (target == null || layout == null || title == null) throw new IllegalArgumentException("Null category property");

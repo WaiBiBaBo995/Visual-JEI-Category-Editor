@@ -15,6 +15,11 @@ public final class ProjectStore {
     private record Origin(Path file, String id, String target, boolean canonical) {}
     private static final Map<CategoryDocument, Origin> ORIGINS = Collections.synchronizedMap(new WeakHashMap<>());
     public ProjectStore(Path root) { this.root = root; }
+    public static CategoryDocument readDocument(String json) {
+        var object = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+        if (!object.has("schemaVersion") || !object.has("minecraftVersion") || !object.has("layoutEngine")) throw new IllegalArgumentException("Not a VJCE 1.20.1 project");
+        var document = JSON.fromJson(object, CategoryDocument.class); document.validate(); return document;
+    }
     public static CategoryDocument copy(CategoryDocument document) {
         var copy = JSON.fromJson(JSON.toJson(document), CategoryDocument.class);
         var origin = ORIGINS.get(document); if (origin != null) ORIGINS.put(copy, origin);
@@ -41,7 +46,7 @@ public final class ProjectStore {
         var file = directory.resolve(filename).normalize();
         if (!directory.equals(file.getParent()) || !Files.isRegularFile(file) || Files.isSymbolicLink(file)) return;
         try {
-            var old = JSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), CategoryDocument.class); old.validate();
+            var old = readDocument(Files.readString(file, StandardCharsets.UTF_8)); old.validate();
             if (file.getFileName().toString().equals(filename(old))) ORIGINS.put(document, new Origin(file, old.id, old.target, true));
         } catch (Exception ignored) {}
     }
@@ -56,7 +61,7 @@ public final class ProjectStore {
             try (var files = Files.list(root.resolve("categories"))) {
                 for (Path file : files.filter(p -> p.toString().endsWith(".json")).sorted().toList()) {
                     try (var reader = Files.newBufferedReader(file)) {
-                        var document = JSON.fromJson(reader, CategoryDocument.class);
+                        var document = readDocument(com.google.gson.JsonParser.parseReader(reader).toString());
                         document.validate();
                         if (!ids.add(document.id)) throw new IllegalArgumentException("Duplicate category ID: " + document.id);
                         if (!document.target.isEmpty() && !targets.add(document.target)) throw new IllegalArgumentException("Duplicate target: " + document.target);
@@ -80,7 +85,7 @@ public final class ProjectStore {
             for (var file : files.filter(p -> p.toString().endsWith(".json")).toList()) {
                 if (Files.isSymbolicLink(file) || origin != null && origin.file.equals(file)) continue;
                 CategoryDocument existing;
-                try { existing = JSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), CategoryDocument.class); existing.validate(); }
+                try { existing = readDocument(Files.readString(file, StandardCharsets.UTF_8)); existing.validate(); }
                 catch (Exception ignored) { continue; }
                 if (existing.id.equals(document.id)) {
                     if (origin != null) throw new IOException("Duplicate category ID: " + document.id);
@@ -112,12 +117,12 @@ public final class ProjectStore {
     public void exportZip(Path destination, Path managedAssets) throws IOException {
         Files.createDirectories(destination.toAbsolutePath().getParent());
         try (var zip = new ZipOutputStream(Files.newOutputStream(destination))) {
-            writeTree(zip, root.resolve("categories"), "config/vjce/categories/");
-            writeTree(zip, root.resolve("assets"), "config/vjce/assets/");
-            writeTree(zip, root.resolve("projects"), "config/vjce/projects/");
-            if (managedAssets != null) writeTree(zip, managedAssets, "ldlib2/assets/");
-            zip.putNextEntry(new ZipEntry("config/vjce/README.txt"));
-            zip.write("Visual JEI Category Editor - pureneko\nExtract at the Minecraft instance root. Requires VJCE, LDLib2 and JEI. Re-enter the world to apply.\n".getBytes(StandardCharsets.UTF_8));
+            writeTree(zip, root.resolve("categories"), "config/vjce-1.20.1/categories/");
+            writeTree(zip, root.resolve("assets"), "config/vjce-1.20.1/assets/");
+            writeTree(zip, root.resolve("projects"), "config/vjce-1.20.1/projects/");
+            if (managedAssets != null) writeTree(zip, managedAssets, "ldlib/assets/");
+            zip.putNextEntry(new ZipEntry("config/vjce-1.20.1/README.txt"));
+            zip.write("Visual JEI Category Editor - pureneko\nExtract at the Minecraft instance root. Requires VJCE, LDLib and JEI. Re-enter the world to apply.\n".getBytes(StandardCharsets.UTF_8));
             zip.closeEntry();
         }
     }

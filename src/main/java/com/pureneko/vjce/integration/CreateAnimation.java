@@ -12,7 +12,7 @@ public final class CreateAnimation {
         try { action.run(); } finally { if(before==null)TIME.remove();else TIME.set(before); }
     }
     public static IDrawable create(String preset, boolean basin) {
-        if(!net.neoforged.fml.ModList.get().isLoaded("create")) return null;
+        if(!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("create")) return null;
         try {
             String name=switch(preset) { case "PRESS" -> "AnimatedPress"; case "MIXER" -> "AnimatedMixer"; case "CRUSHING_WHEELS" -> "AnimatedCrushingWheels"; default -> throw new IllegalArgumentException(preset); };
             var type=Class.forName("com.simibubi.create.compat.jei.category.animations."+name);

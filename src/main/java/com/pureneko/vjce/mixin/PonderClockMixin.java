@@ -9,6 +9,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Pseudo
 @Mixin(targets="net.createmod.catnip.animation.AnimationTickHolder",remap=false)
 public abstract class PonderClockMixin {
-    @Inject(method={"getRenderTime()F","getRenderTime(Lnet/minecraft/world/level/LevelAccessor;)F"},at=@At("HEAD"),cancellable=true,remap=false,require=0)
+    @Inject(method="getRenderTime",at=@At("HEAD"),cancellable=true,remap=false,require=0)
     private static void vjce$time(CallbackInfoReturnable<Float> cir) { var time=CreateAnimation.time();if(time!=null)cir.setReturnValue(time); }
 }

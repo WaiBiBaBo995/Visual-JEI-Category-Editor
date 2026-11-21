@@ -1,52 +1,31 @@
 package com.pureneko.vjce.integration;
 
 import com.google.gson.*;
-import com.lowdragmc.lowdraglib2.Platform;
-import com.mojang.serialization.JsonOps;
-import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.*;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
-/** Lossless display data. JEI's strict item codec also validates gameplay component combinations. */
+/** 1.20.1 display items retain their complete typed NBT; amounts are stored separately. */
 public final class ItemPresentationCodec {
     private ItemPresentationCodec() {}
-
     public static JsonElement encode(ItemStack stack) {
-        var provider = Platform.getFrozenRegistry();
-        var data = new JsonObject();
-        data.add("id", ItemStack.ITEM_NON_AIR_CODEC.encodeStart(provider.createSerializationContext(JsonOps.INSTANCE), stack.getItemHolder()).getOrThrow());
-        if (!stack.getComponentsPatch().isEmpty()) {
-            // SNBT retains byte/int/long and array types in custom data, as JEI's codec does.
-            var patch = DataComponentPatch.CODEC.encodeStart(provider.createSerializationContext(NbtOps.INSTANCE), stack.getComponentsPatch()).getOrThrow();
-            data.addProperty("components", patch.toString());
-        }
-        // Count lives in CategoryDocument.Ingredient.amount, independently of stack limits.
+        if(stack.isEmpty())throw new IllegalArgumentException("Cannot save an empty item");
+        var data=new JsonObject(); data.addProperty("id",BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+        if(stack.hasTag())data.addProperty("nbt",stack.getTag().toString());
         return data;
     }
-
     public static ItemStack decode(JsonElement encoded) {
-        if (encoded != null && encoded.isJsonPrimitive() && encoded.getAsJsonPrimitive().isString()) {
-            var legacy = new JsonObject();
-            legacy.add("id", encoded);
-            encoded = legacy;
-        }
-        if (encoded == null || !encoded.isJsonObject()) throw new IllegalArgumentException("Invalid item display data");
-        var provider = Platform.getFrozenRegistry();
-        var data = encoded.getAsJsonObject();
-        var holder = ItemStack.ITEM_NON_AIR_CODEC.parse(provider.createSerializationContext(JsonOps.INSTANCE), data.get("id")).getOrThrow();
-        var patch = DataComponentPatch.EMPTY;
-        if (data.has("components")) {
-            var components = data.get("components");
-            if (components.isJsonPrimitive() && components.getAsJsonPrimitive().isString()) {
-                try {
-                    patch = DataComponentPatch.CODEC.parse(provider.createSerializationContext(NbtOps.INSTANCE), TagParser.parseTag(components.getAsString())).getOrThrow();
-                } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
-                    throw new IllegalArgumentException("Invalid item component SNBT", e);
-                }
-            } else {
-                patch = DataComponentPatch.CODEC.parse(provider.createSerializationContext(JsonOps.INSTANCE), components).getOrThrow();
-            }
-        }
-        return new ItemStack(holder, 1, patch);
+        if(encoded!=null&&encoded.isJsonPrimitive()) {var data=new JsonObject();data.add("id",encoded);encoded=data;}
+        if(encoded==null||!encoded.isJsonObject())throw new IllegalArgumentException("Invalid item display data");
+        var data=encoded.getAsJsonObject();
+        if(data.has("components"))throw new IllegalArgumentException("1.21 item components are not supported by a 1.20.1 project");
+        var id=new ResourceLocation(data.get("id").getAsString());
+        if(!BuiltInRegistries.ITEM.containsKey(id))throw new IllegalArgumentException("Missing item: "+id);
+        var stack=new ItemStack(BuiltInRegistries.ITEM.get(id));
+        if(stack.isEmpty())throw new IllegalArgumentException("Invalid display item: "+id);
+        if(data.has("nbt"))try {stack.setTag(TagParser.parseTag(data.get("nbt").getAsString()));}
+        catch(com.mojang.brigadier.exceptions.CommandSyntaxException e){throw new IllegalArgumentException("Invalid item NBT",e);}
+        return stack;
     }
 }

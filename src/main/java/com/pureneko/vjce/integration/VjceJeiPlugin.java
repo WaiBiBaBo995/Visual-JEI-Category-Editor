@@ -12,7 +12,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import java.util.*;
 
-@JeiPlugin
 public final class VjceJeiPlugin implements IModPlugin {
     public static IJeiHelpers helpers;
     public static IJeiRuntime runtime;
@@ -20,13 +19,13 @@ public final class VjceJeiPlugin implements IModPlugin {
     public static final Map<String, CapturedCategory<?>> adapters = new LinkedHashMap<>();
     private static List<CategoryDocument> documents;
     private final Map<CategoryDocument, DisplayCategory<CategoryDocument.Recipe>> custom = new LinkedHashMap<>();
-    @Override public ResourceLocation getPluginUid() { return ResourceLocation.fromNamespaceAndPath("vjce", "plugin"); }
+    @Override public ResourceLocation getPluginUid() { return new ResourceLocation("vjce", "plugin"); }
     public static List<CategoryDocument> documents() {
         if (documents == null) {
             var loaded = new ArrayList<CategoryDocument>();
             for (var document : VisualJeiCategoryEditor.STORE.loadAll()) {
                 try {
-                    if (!document.layout.isBlank()) com.lowdragmc.lowdraglib2.gui.ui.UITemplate.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, net.minecraft.nbt.TagParser.parseTag(document.layout)).getOrThrow();
+                    if (!document.layout.isBlank()) com.pureneko.vjce.client.canvas.CanvasTemplate.parse(document.layout);
                     loaded.add(document);
                 } catch (Exception e) { VisualJeiCategoryEditor.STORE.errors.add(document.id + " layout: " + e.getMessage()); }
             }
@@ -51,7 +50,7 @@ public final class VjceJeiPlugin implements IModPlugin {
         CategoryFixtures.categories(registration);
         custom.clear();
         for (var document : documents()) if (document.target.isEmpty()) {
-            var type = new RecipeType<>(ResourceLocation.parse(document.id), CategoryDocument.Recipe.class);
+            var type = new RecipeType<>(new ResourceLocation(document.id), CategoryDocument.Recipe.class);
             var category = new DisplayCategory<>(document, type, recipe -> recipe);
             custom.put(document, category);
             registration.addRecipeCategories(category);
@@ -88,7 +87,7 @@ public final class VjceJeiPlugin implements IModPlugin {
         for (var encoded : document.catalysts) {
             try {
                 var stack = ItemPresentationCodec.decode(encoded);
-                if (added.stream().anyMatch(previous -> ItemStack.isSameItemSameComponents(previous, stack))) continue;
+                if (added.stream().anyMatch(previous -> ItemStack.isSameItemSameTags(previous, stack))) continue;
                 registration.addRecipeCatalyst(stack, type);
                 added.add(stack);
             } catch (RuntimeException error) {

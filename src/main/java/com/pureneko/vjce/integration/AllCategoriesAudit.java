@@ -1,6 +1,6 @@
 package com.pureneko.vjce.integration;
 
-import com.lowdragmc.lowdraglib2.gui.ui.*;
+import com.pureneko.vjce.client.canvas.*;
 import com.pureneko.vjce.client.*;
 import com.pureneko.vjce.data.*;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
@@ -13,7 +13,7 @@ import java.nio.file.*;
 public final class AllCategoriesAudit {
     @SuppressWarnings({"rawtypes", "unchecked", "removal"}) public static Map<String, Object> run() throws Exception {
         var manager = VjceJeiPlugin.runtime.getRecipeManager(); var focus = VjceJeiPlugin.helpers.getFocusFactory().createFocusGroup(List.of());
-        var rows = new TreeMap<String, Object>(); var errors = new ArrayList<String>(); int edited = 0, empty = 0, limited = 0, mekanism = 0;
+        var rows = new TreeMap<String, Object>(); var errors = new ArrayList<String>(); int edited = 0, empty = 0, limited = 0, unavailable = 0, mekanism = 0;
         for (var entry : VjceJeiPlugin.originals.entrySet()) {
             String id = entry.getKey(); IRecipeCategory original = entry.getValue();
             if (id.startsWith("mekanism:")) mekanism++;
@@ -21,26 +21,34 @@ public final class AllCategoriesAudit {
             if (original instanceof DisplayCategory<?>) { row.put("status", "vjce-project"); continue; }
             Object raw = manager.createRecipeLookup(original.getRecipeType()).get().findFirst().orElse(null);
             if (raw == null) { row.put("status", "empty"); empty++; continue; }
+            // JEI may reject a broken source recipe before VJCE captures anything.
+            var sourceLayout = manager.createRecipeLayoutDrawable(original, raw, focus);
+            if (sourceLayout.isEmpty()) {
+                row.put("status", "source-unavailable");
+                row.put("reason", "JEI rejected the unmodified source layout; see the client log");
+                unavailable++; continue;
+            }
             try {
                 var data = CapturedCategory.capture(original, raw);
-                var source = (IRecipeLayoutDrawable) manager.createRecipeLayoutDrawable(original, raw, focus).orElseThrow();
-                source.setPosition(0, 0);
+                var source = (IRecipeLayoutDrawable) sourceLayout.orElseThrow();
+                source.setPosition(0, 0); source.tick();
                 var document = new CategoryDocument(); document.id = VjceEditor.overrideId(original.getRecipeType().getUid()).toString(); document.target = id;
                 document.width = Math.max(18, original.getWidth()); document.height = Math.max(18, original.getHeight());
                 NativePage.preview(document, data); // Detect a declared read-only capability before making an editable template.
                 var template = RecipeUI.template(document, data); var content = template.createUI();
                 var first = content.rootElement.selectId("slot_0").findFirst().orElse(null);
                 int x = 0, y = 0;
-                if (first != null) { x = data.slots.getFirst().x + 6; y = data.slots.getFirst().y + 3; int px = x, py = y; first.layout(l -> { l.left(px); l.top(py); }); }
-                var saved = content.toTemplate(); saved.copyStylesFrom(template);
-                document.layout = UITemplate.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, saved).getOrThrow().toString();
+                if (first != null) { x = data.slots.get(0).x + 6; y = data.slots.get(0).y + 3; int px = x, py = y; first.layout(l -> { l.left(px); l.top(py); }); }
+                var saved = content.toTemplate();
+                document.layout = saved.serialize();
                 var adapter = new CapturedCategory(original, document);
                 var actual = (IRecipeLayoutDrawable) manager.createRecipeLayoutDrawable(adapter, raw, focus).orElseThrow(); actual.setPosition(0, 0);
-                ((com.pureneko.vjce.mixin.RecipeLayoutAccess) actual).vjce$createExtras();
+                var mc=net.minecraft.client.Minecraft.getInstance();var graphics=new net.minecraft.client.gui.GuiGraphics(mc,mc.renderBuffers().bufferSource());
+                graphics.pose().pushPose();try{graphics.pose().translate(-4096,-4096,0);actual.drawRecipe(graphics,-100,-100);graphics.flush();}finally{graphics.pose().popPose();}
                 var before = source.getRecipeSlotsView().getSlotViews(); var after = actual.getRecipeSlotsView().getSlotViews();
                 if (before.size() != after.size()) throw new IllegalStateException("Slot count changed: " + before.size() + " -> " + after.size());
                 if (first != null && !after.isEmpty()) {
-                    var slot = (IRecipeSlotDrawable) after.getFirst();
+                    var slot = (IRecipeSlotDrawable) after.get(0);
                     if (slot.getRect().getX() != x || slot.getRect().getY() != y) throw new IllegalStateException("Saved placement was not applied");
                     if (actual.getRecipeSlotUnderMouse(x + slot.getRect().getWidth() / 2.0, y + slot.getRect().getHeight() / 2.0).orElse(null) != slot) throw new IllegalStateException("Edited slot hit-test lost identity");
                 }
@@ -52,8 +60,7 @@ public final class AllCategoriesAudit {
                     var doc = new CategoryDocument(); doc.target = id;
                     var before = (IRecipeLayoutDrawable) manager.createRecipeLayoutDrawable(original, raw, focus).orElseThrow();
                     var after = (IRecipeLayoutDrawable) manager.createRecipeLayoutDrawable(new CapturedCategory(original, doc), raw, focus).orElseThrow();
-                    ((com.pureneko.vjce.mixin.RecipeLayoutAccess) before).vjce$createExtras();
-                    ((com.pureneko.vjce.mixin.RecipeLayoutAccess) after).vjce$createExtras();
+                    before.tick(); after.tick();
                     boolean intact = before.getRecipeSlotsView().getSlotViews().size() == after.getRecipeSlotsView().getSlotViews().size()
                             && ((com.pureneko.vjce.mixin.RecipeLayoutAccess) before).vjce$widgets().size() == ((com.pureneko.vjce.mixin.RecipeLayoutAccess) after).vjce$widgets().size();
                     row.put("originalPagePreserved", intact); if (!intact) errors.add(id + ": fallback lost original contents");
@@ -62,8 +69,8 @@ public final class AllCategoriesAudit {
             }
         }
         var report = new LinkedHashMap<String, Object>(); report.put("categories", rows); report.put("edited", edited); report.put("empty", empty);
-        report.put("limited", limited); report.put("mekanismCategories", mekanism); report.put("errors", errors); report.put("passed", errors.isEmpty());
-        Files.writeString(net.neoforged.fml.loading.FMLPaths.GAMEDIR.get().resolve("vjce-category-audit.json"), ProjectStore.JSON.toJson(report));
+        report.put("limited", limited); report.put("sourceUnavailable", unavailable); report.put("mekanismCategories", mekanism); report.put("errors", errors); report.put("passed", errors.isEmpty());
+        Files.writeString(net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("vjce-category-audit.json"), ProjectStore.JSON.toJson(report));
         return report;
     }
 }

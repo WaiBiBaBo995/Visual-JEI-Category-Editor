@@ -9,7 +9,6 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.fluids.FluidStack;
 import java.lang.reflect.*;
 import java.util.*;
 
@@ -73,7 +72,7 @@ public final class LayoutCapture {
             }
             else if (name.startsWith("add")) {
                 if (args != null && args.length >= 2 && args[0] instanceof IIngredientType<?> type) add(type, args[1]);
-                else if (args != null && args.length > 0 && name.equals("addFluidStack")) addAny(new FluidStack((net.minecraft.world.level.material.Fluid) args[0], ((Number) args[1]).intValue()));
+                else if (args != null && args.length > 0 && name.equals("addFluidStack")) addAny(IngredientAccess.createFabricFluid((net.minecraft.world.level.material.Fluid) args[0], ((Number) args[1]).longValue(), args.length > 2 && args[2] instanceof net.minecraft.nbt.CompoundTag tag ? tag : null));
                 else if (args != null && args.length > 0 && Set.of("addItemStack", "addItemStacks", "addTypedIngredient", "addTypedIngredients", "addOptionalTypedIngredients", "addIngredients", "addIngredientsUnsafe").contains(name)) addAny(args[0]);
             }
             return defaultValue(proxy, method, args);
@@ -84,13 +83,13 @@ public final class LayoutCapture {
             if (value instanceof Ingredient ingredient) { Arrays.stream(ingredient.getItems()).forEach(this::addAny); return; }
             if (value instanceof ITypedIngredient<?> typed) { values.add(typed); return; }
             if (value == null) values.add(null);
-            else values.add(IngredientAccess.manager.createTypedIngredient(value, false).orElse(null));
+            else values.add(IngredientAccess.manager.createTypedIngredient(value).orElse(null));
         }
         @SuppressWarnings({"unchecked", "rawtypes"}) void add(IIngredientType type, Object value) {
             if (value instanceof Collection<?> c) { c.forEach(v -> add(type, v)); return; }
             if (value instanceof Optional<?> o) { if (o.isPresent()) add(type, o.get()); else values.add(null); return; }
             if (value == null) values.add(null);
-            else values.add((ITypedIngredient<?>) IngredientAccess.manager.createTypedIngredient(type, value, false).orElse(null));
+            else values.add((ITypedIngredient<?>) IngredientAccess.manager.createTypedIngredient(type, value).orElse(null));
         }
     }
     private static Object defaultValue(Object proxy, Method method, Object[] args) {

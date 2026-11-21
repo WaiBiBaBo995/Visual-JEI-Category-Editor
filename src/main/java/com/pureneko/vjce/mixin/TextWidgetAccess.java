@@ -11,7 +11,6 @@ import java.util.List;
 public interface TextWidgetAccess {
     @Accessor("text") List<FormattedText> vjce$text();
     @Accessor("font") Font vjce$font();
-    @Accessor("colorOverride") Integer vjce$color();
     @Accessor("shadow") boolean vjce$shadow();
     @Accessor("lineSpacing") int vjce$spacing();
     @Accessor("horizontalAlignment") HorizontalAlignment vjce$horizontal();

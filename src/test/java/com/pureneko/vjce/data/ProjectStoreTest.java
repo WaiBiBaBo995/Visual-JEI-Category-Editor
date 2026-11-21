@@ -8,20 +8,27 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ProjectStoreTest {
     @TempDir Path temporary;
+    @Test void rejectsOldOrUnversionedProjects() {
+        assertThrows(IllegalArgumentException.class, () -> ProjectStore.readDocument("{\"id\":\"vjce:old\"}"));
+        var document = new CategoryDocument(); document.minecraftVersion = "1.21.1";
+        assertThrows(IllegalArgumentException.class, () -> ProjectStore.readDocument(ProjectStore.JSON.toJson(document)));
+        document.minecraftVersion = "1.20.1"; document.layoutEngine = "ldlib2";
+        assertThrows(IllegalArgumentException.class, () -> ProjectStore.readDocument(ProjectStore.JSON.toJson(document)));
+    }
     @Test void roundTripAndModpackExportPreserveLayoutAndAssets() throws Exception {
         var store = new ProjectStore(temporary.resolve("config/vjce"));
         var document = new CategoryDocument();
         document.layout = "{template:{bytes:[B;1b,2b],value:2.0f}}";
         store.save(document);
-        assertEquals(document.layout, store.loadAll().getFirst().layout);
-        var assets = temporary.resolve("ldlib2/assets/vjce/textures");
+        assertEquals(document.layout, store.loadAll().get(0).layout);
+        var assets = temporary.resolve("ldlib/assets/vjce/textures");
         Files.createDirectories(assets);
         Files.write(assets.resolve("test.png"), new byte[]{1, 2, 3});
         var archive = temporary.resolve("export.zip");
-        store.exportZip(archive, temporary.resolve("ldlib2/assets"));
+        store.exportZip(archive, temporary.resolve("ldlib/assets"));
         try (var zip = new ZipFile(archive.toFile())) {
-            assertNotNull(zip.getEntry("ldlib2/assets/vjce/textures/test.png"));
-            assertTrue(zip.stream().anyMatch(e -> e.getName().startsWith("config/vjce/categories/") && e.getName().endsWith(".json")));
+            assertNotNull(zip.getEntry("ldlib/assets/vjce/textures/test.png"));
+            assertTrue(zip.stream().anyMatch(e -> e.getName().startsWith("config/vjce-1.20.1/categories/") && e.getName().endsWith(".json")));
         }
     }
     @Test void oneBrokenDocumentDoesNotDiscardOtherCategories() throws Exception {
@@ -43,7 +50,7 @@ class ProjectStoreTest {
         var binding = new CategoryDocument.Binding(); binding.expression = "missing / 0";
         document.bindings.add(binding); document.recipes.add(new CategoryDocument.Recipe());
         assertThrows(IllegalArgumentException.class, () -> store.save(document));
-        assertTrue(store.loadAll().getFirst().bindings.isEmpty());
+        assertTrue(store.loadAll().get(0).bindings.isEmpty());
     }
     @Test void filenamesUseResourceIdsAndOptionalOriginalCategory() throws Exception {
         var store = new ProjectStore(temporary); var doc = new CategoryDocument(); doc.id = "vjce:demo/example";
@@ -57,7 +64,7 @@ class ProjectStoreTest {
     }
     @Test void resourceRenameSurvivesCopiesAndProjectReopening() throws Exception {
         var store = new ProjectStore(temporary); var doc = new CategoryDocument(); var old = store.save(doc);
-        var copy = ProjectStore.copy(store.loadAll().getFirst()); copy.id = "vjce:renamed";
+        var copy = ProjectStore.copy(store.loadAll().get(0)); copy.id = "vjce:renamed";
         var renamed = store.save(copy); assertFalse(Files.exists(old)); assertTrue(Files.exists(renamed));
         var reopened = ProjectStore.JSON.fromJson(ProjectStore.JSON.toJson(copy), CategoryDocument.class);
         var newStore = new ProjectStore(temporary); newStore.restoreSource(reopened, store.sourceFile(copy)); reopened.id = "vjce:renamed_again";
@@ -79,7 +86,7 @@ class ProjectStoreTest {
         var content = ProjectStore.JSON.toJson(doc); Files.writeString(legacy, content);
         assertEquals(1, store.loadAll().size()); assertEquals(content, Files.readString(legacy));
         assertTrue(Files.exists(legacy)); try (var files = Files.list(legacy.getParent())) { assertEquals(1, files.count()); }
-        var loaded = store.loadAll().getFirst(); loaded.title = "Explicit user edit";
+        var loaded = store.loadAll().get(0); loaded.title = "Explicit user edit";
         assertEquals(legacy, store.save(loaded)); assertEquals(1, store.loadAll().size());
     }
     @Test void conflictingFilenameCannotOverwriteAnotherCategory() throws Exception {
@@ -96,9 +103,9 @@ class ProjectStoreTest {
                 {"id":"minecraft:potion","components":"{\\\"minecraft:potion_contents\\\":{potion:\\\"minecraft:awkward\\\"}}"}]}
                 """, CategoryDocument.class);
         store.save(document);
-        var catalysts = store.loadAll().getFirst().catalysts;
+        var catalysts = store.loadAll().get(0).catalysts;
         assertEquals(document.catalysts, catalysts);
-        assertEquals("minecraft:crafting_table", catalysts.getFirst().getAsString());
+        assertEquals("minecraft:crafting_table", catalysts.get(0).getAsString());
         assertNotEquals(catalysts.get(1), catalysts.get(2));
     }
 
