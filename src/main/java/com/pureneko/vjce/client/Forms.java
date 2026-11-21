@@ -144,7 +144,7 @@ final class Forms {
     }
     static String ingredientType(CategoryDocument.Ingredient ingredient) {
         if (ingredient.type != null && !ingredient.type.isBlank()) return ingredient.type;
-        if (!ingredient.fluid.isBlank()) return mezz.jei.api.neoforge.NeoForgeTypes.FLUID_STACK.getUid();
+        if (!ingredient.fluid.isBlank()) return mezz.jei.api.fabric.constants.FabricTypes.FLUID_STACK.getUid();
         if (!ingredient.item.isBlank() || !ingredient.tag.isBlank()) return mezz.jei.api.constants.VanillaTypes.ITEM_STACK.getUid();
         return "";
     }

@@ -36,7 +36,7 @@ final class SceneEditingView extends View {
         var split=new SplitView.Horizontal();split.setPercentage(72);split.setMinPercentage(45);split.setMaxPercentage(85);split.setBorderSize(5);
         split.layout(l->{l.flex(1);l.minHeight(0);});split.first.addChild(preview);
         var parameters=new ScrollerView();parameters.setId("vjce_scene_parameters");parameters.layout(l->{l.widthPercent(100);l.flex(1);l.minHeight(0);});split.second.addChild(parameters);
-        var content=parameters.getContentHost();
+        var content=parameters.viewContainer;
         content.addChildren(new Label().setText("vjce.asset.drag_help").textStyle(s->s.textWrap(com.lowdragmc.lowdraglib2.gui.ui.data.TextWrap.WRAP).adaptiveHeight(true)),
                 new Button().setText("vjce.world.open").setOnClick(e->WorldSelectionDialog.open(this,this::working,this::setWorking)).setId("vjce_world_open"));
         objects.layout(l->{l.widthPercent(100);l.height(105);l.minHeight(70);l.flexShrink(0);});objects.setId("vjce_scene_objects");
@@ -58,36 +58,36 @@ final class SceneEditingView extends View {
     private void mutate(java.util.function.Consumer<CompoundTag> action){try{var data=working();action.accept(data);setWorking(data);}catch(RuntimeException invalid){error.setText(invalid.getMessage());}}
     private ListTag selectedRows(CompoundTag data){return BlockSceneElement.rows(data,selectedKind);}
     private void refreshObjects(){
-        var data=working();var host=objects.getContentHost();host.clearAllChildren();
+        var data=working();var host=objects.viewContainer;host.clearAllChildren();
         for(String kind:List.of("blocks","entities"))for(int i=0;i<BlockSceneElement.rows(data,kind).size();i++){
-            final int index=i;var row=BlockSceneElement.rows(data,kind).getCompound(i);
-            String name=row.contains("resource")?SceneAssets.displayName(kind.equals("blocks")?SceneAssetResource.BLOCKS:SceneAssetResource.ENTITIES,row):kind.equals("blocks")?row.getCompound("state").getString("Name"):row.getString("id");
+            final int index=i;var row=BlockSceneElement.rows(data,kind).getCompoundOrEmpty(i);
+            String name=row.contains("resource")?SceneAssets.displayName(kind.equals("blocks")?SceneAssetResource.BLOCKS:SceneAssetResource.ENTITIES,row):kind.equals("blocks")?row.getCompoundOrEmpty("state").getStringOr("Name", ""):row.getStringOr("id", "");
             var button=new Button().setText((kind.equals("blocks")?"B ":"E ")+i+" "+name).setOnClick(e->{selectedKind=kind;selected=index;refreshFields();});
             button.setId("vjce_object_"+kind+"_"+i);button.layout(l->{l.widthPercent(100);l.minHeight(18);l.flexShrink(0);});
             button.addEventListener(UIEvents.DRAG_PERFORM,e->{if(e.dragHandler.draggingObject instanceof SceneAssets.Drop drop&&drop.type().entity==kind.equals("entities")){
-                mutate(copy->{var old=BlockSceneElement.rows(copy,kind).getCompound(index);var ref=SceneAssets.instance(drop);for(String key:List.of("resource","resourceId"))old.put(key,ref.get(key).copy());});e.stopImmediatePropagation();}});
+                mutate(copy->{var old=BlockSceneElement.rows(copy,kind).getCompoundOrEmpty(index);var ref=SceneAssets.instance(drop);for(String key:List.of("resource","resourceId"))old.put(key,ref.get(key).copy());});e.stopImmediatePropagation();}});
             host.addChild(button);
         }
         if(selected>=selectedRows(data).size())selected=-1;refreshFields();
     }
     private void refreshFields(){
         fields.clearAllChildren();if(selected<0){selection.setText("vjce.scene.select_instance");return;}
-        var row=selectedRows(working()).getCompound(selected);selection.setText((selectedKind.equals("blocks")?"B ":"E ")+selected);
+        var row=selectedRows(working()).getCompoundOrEmpty(selected);selection.setText((selectedKind.equals("blocks")?"B ":"E ")+selected);
         for(String key:List.of("x","y","z","yaw","pitch","roll","scale")){
             boolean integer=selectedKind.equals("blocks")&&List.of("x","y","z").contains(key);
-            double value=row.contains(key)?row.getDouble(key):key.equals("scale")?1:0;
+            double value=row.getDoubleOr(key, key.equals("scale") ? 1 : 0);
             double min=key.equals("scale")?.05:List.of("x","y","z").contains(key)?-64:-36000;
             double max=key.equals("scale")?16:List.of("x","y","z").contains(key)?64:36000;
-            var input=EditorForms.number(value,min,max,integer,v->{if(updating)return;updating=true;try{mutate(data->selectedRows(data).getCompound(selected).putDouble(key,v));}finally{updating=false;}});
+            var input=EditorForms.number(value,min,max,integer,v->{if(updating)return;updating=true;try{mutate(data->selectedRows(data).getCompoundOrEmpty(selected).putDouble(key,v));}finally{updating=false;}});
             input.setId("vjce_entity_"+key);fields.addChild(Forms.row().addChildren(new Label().setText(key).layout(l->{l.width(40);l.flexShrink(0);}),input));
         }
         fields.addChild(new Button().setText("vjce.scene.remove_instance").setOnClick(e->mutate(data->{selectedRows(data).remove(selected);selected=-1;})));
         if(selectedKind.equals("entities")){
             var pose=new Selector<net.minecraft.world.entity.Pose>();pose.setId("vjce_entity_pose");pose.setCandidates(List.of(net.minecraft.world.entity.Pose.STANDING,net.minecraft.world.entity.Pose.CROUCHING,net.minecraft.world.entity.Pose.SLEEPING,net.minecraft.world.entity.Pose.SWIMMING,net.minecraft.world.entity.Pose.FALL_FLYING));
             pose.setCandidateUIProvider(p->new Label().setText(p==null?"":p.name()));
-            var effective=selectedRows(SceneAssets.resolve(working())).getCompound(selected);
-            try{pose.setSelected(net.minecraft.world.entity.Pose.valueOf(effective.getString("pose").isBlank()?"STANDING":effective.getString("pose")),false);}catch(IllegalArgumentException ignored){}
-            pose.setOnValueChanged(p->mutate(data->selectedRows(data).getCompound(selected).putString("pose",p.name())));fields.addChild(pose);
+            var effective=selectedRows(SceneAssets.resolve(working())).getCompoundOrEmpty(selected);
+            try{pose.setSelected(net.minecraft.world.entity.Pose.valueOf(effective.getStringOr("pose", "").isBlank()?"STANDING":effective.getStringOr("pose", "")),false);}catch(IllegalArgumentException ignored){}
+            pose.setOnValueChanged(p->mutate(data->selectedRows(data).getCompoundOrEmpty(selected).putString("pose",p.name())));fields.addChild(pose);
         }
         EditorForms.ore(fields);
     }
@@ -106,15 +106,15 @@ final class SceneEditingView extends View {
     void addDrop(SceneAssets.Drop drop,Vec3 position){
         try{var data=working();String kind=drop.type().entity?"entities":"blocks";var rows=BlockSceneElement.rows(data,kind);
             if(rows.size()>=(drop.type().entity?32:4096))throw new IllegalArgumentException("Scene content limit reached");
-            if(position==null){var occupied=new HashSet<BlockPos>();for(var tag:BlockSceneElement.rows(data,"blocks")){var r=(CompoundTag)tag;occupied.add(new BlockPos(r.getInt("x"),r.getInt("y"),r.getInt("z")));}
-                for(var tag:BlockSceneElement.rows(data,"entities")){var r=(CompoundTag)tag;occupied.add(BlockPos.containing(r.getDouble("x"),r.getDouble("y"),r.getDouble("z")));}
+            if(position==null){var occupied=new HashSet<BlockPos>();for(var tag:BlockSceneElement.rows(data,"blocks")){var r=(CompoundTag)tag;occupied.add(new BlockPos(r.getIntOr("x", 0),r.getIntOr("y", 0),r.getIntOr("z", 0)));}
+                for(var tag:BlockSceneElement.rows(data,"entities")){var r=(CompoundTag)tag;occupied.add(BlockPos.containing(r.getDoubleOr("x", 0),r.getDoubleOr("y", 0),r.getDoubleOr("z", 0)));}
                 for(int z=0;z<=64&&position==null;z++)for(int x=0;x<=64;x++)if(!occupied.contains(new BlockPos(x,0,z))){position=new Vec3(drop.type().entity?x+.5:x,0,drop.type().entity?z+.5:z);break;}}
             if(position==null||Math.abs(position.x)>64||Math.abs(position.y)>64||Math.abs(position.z)>64)throw new IllegalArgumentException("No valid scene position");
             var row=SceneAssets.instance(drop);if(drop.type().entity){
                 row.putDouble("x",position.x);row.putDouble("y",position.y);row.putDouble("z",position.z);
                 row.putFloat("yaw", SceneEntities.frontQuarterYaw(preview.rotationYawForPlacement()));
             }else{
-                var p=BlockPos.containing(position);for(var tag:rows){var r=(CompoundTag)tag;if(r.getInt("x")==p.getX()&&r.getInt("y")==p.getY()&&r.getInt("z")==p.getZ())throw new IllegalArgumentException("Position occupied");}
+                var p=BlockPos.containing(position);for(var tag:rows){var r=(CompoundTag)tag;if(r.getIntOr("x", 0)==p.getX()&&r.getIntOr("y", 0)==p.getY()&&r.getIntOr("z", 0)==p.getZ())throw new IllegalArgumentException("Position occupied");}
                 row.putInt("x",p.getX());row.putInt("y",p.getY());row.putInt("z",p.getZ());}
             rows.add(row);data.put(kind,rows);selectedKind=kind;selected=rows.size()-1;setWorking(data);
         }catch(RuntimeException invalid){error.setText(invalid.getMessage());}
@@ -122,7 +122,7 @@ final class SceneEditingView extends View {
     private void pick(float x,float y){
         var ray=preview.ray(x,y);if(ray==null)return;var a=ray[0];var b=ray[1];double best=Double.MAX_VALUE;int index=-1;String kind="entities";
         var entities=preview.sceneEntities();for(int i=0;i<entities.size();i++){var hit=entities.get(i).getBoundingBox().inflate(.15).clip(a,b);if(hit.isPresent()&&hit.get().distanceToSqr(a)<best){best=hit.get().distanceToSqr(a);index=i;}}
-        var block=preview.hit(x,y);if(block!=null&&block.distance()<best){var rows=BlockSceneElement.rows(working(),"blocks");for(int i=0;i<rows.size();i++){var r=rows.getCompound(i);if(new BlockPos(r.getInt("x"),r.getInt("y"),r.getInt("z")).equals(block.pos())){index=i;kind="blocks";break;}}}
+        var block=preview.hit(x,y);if(block!=null&&block.distance()<best){var rows=BlockSceneElement.rows(working(),"blocks");for(int i=0;i<rows.size();i++){var r=rows.getCompoundOrEmpty(i);if(new BlockPos(r.getIntOr("x", 0),r.getIntOr("y", 0),r.getIntOr("z", 0)).equals(block.pos())){index=i;kind="blocks";break;}}}
         if(index>=0){selected=index;selectedKind=kind;refreshFields();}
     }
     private void apply(){
@@ -144,7 +144,9 @@ final class SceneEditingView extends View {
         @Override protected boolean allowEmptyScene(){return true;}
         float rotationYawForPlacement() { return inverse == null ? cameraYaw : rotationYaw; }
         @Override protected void onDragSourceUpdate(UIEvent event){super.onDragSourceUpdate(event);cameraYaw=rotationYaw;cameraPitch=rotationPitch;}
-        @Override public void renderBlockOverLay(com.lowdragmc.lowdraglib2.client.scene.WorldSceneRenderer r){super.renderBlockOverLay(r);inverse=new Matrix4f(com.mojang.blaze3d.systems.RenderSystem.getProjectionMatrix()).mul(com.mojang.blaze3d.systems.RenderSystem.getModelViewMatrix()).invert();}
+        @Override protected void onSceneRendered(com.lowdragmc.lowdraglib2.client.scene.WorldSceneRenderer renderer) {
+            inverse = ((com.pureneko.vjce.mixin.SceneCameraAccess) renderer).vjce$viewProjection().invert();
+        }
         Vec3[] ray(float x,float y){if(inverse==null)return null;var mouse=getLocalMouse(x,y);float nx=(mouse.x-getContentX())/getContentWidth()*2-1,ny=1-(mouse.y-getContentY())/getContentHeight()*2;
             var a=inverse.transform(new Vector4f(nx,ny,-1,1));var b=inverse.transform(new Vector4f(nx,ny,1,1));return new Vec3[]{new Vec3(a.x/a.w,a.y/a.w,a.z/a.w),new Vec3(b.x/b.w,b.y/b.w,b.z/b.w)};}
         Vec3 point(float x,float y,boolean entity){
@@ -155,7 +157,7 @@ final class SceneEditingView extends View {
         Hit hit(float x,float y){
             var ray=ray(x,y);if(ray==null)return null;Hit nearest=null;
             for(var tag:BlockSceneElement.rows(SceneAssets.resolve(working()),"blocks")){
-                var row=(CompoundTag)tag;var pos=new BlockPos(row.getInt("x"),row.getInt("y"),row.getInt("z"));var box=SceneTransforms.bounds(pos,row);var point=box.clip(ray[0],ray[1]);if(point.isEmpty())continue;
+                var row=(CompoundTag)tag;var pos=new BlockPos(row.getIntOr("x", 0),row.getIntOr("y", 0),row.getIntOr("z", 0));var box=SceneTransforms.bounds(pos,row);var point=box.clip(ray[0],ray[1]);if(point.isEmpty())continue;
                 double distance=point.get().distanceToSqr(ray[0]);if(nearest!=null&&nearest.distance<=distance)continue;var p=point.get();
                 double[] distances={Math.abs(p.y-box.minY),Math.abs(p.y-box.maxY),Math.abs(p.z-box.minZ),Math.abs(p.z-box.maxZ),Math.abs(p.x-box.minX),Math.abs(p.x-box.maxX)};
                 int face=0;for(int i=1;i<distances.length;i++)if(distances[i]<distances[face])face=i;

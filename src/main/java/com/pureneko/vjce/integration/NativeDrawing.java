@@ -5,8 +5,8 @@ import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
 import com.pureneko.vjce.client.NativePartElement;
 import com.pureneko.vjce.data.CategoryDocument;
 import dev.vfyjxf.taffy.style.TaffyPosition;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
 import org.joml.*;
 import java.lang.Math;
 import java.util.*;
@@ -53,25 +53,25 @@ public final class NativeDrawing {
         }
         return changed;
     }
-    public Scope open(UIElement root,GuiGraphics g,NativePartElement nativeLayer,double mouseX,double mouseY) {
+    public Scope open(UIElement root,GuiGraphicsExtractor g,NativePartElement nativeLayer,double mouseX,double mouseY) {
         var old=ACTIVE.get();var frame=new Frame(this,root,g,nativeLayer,mouseX,mouseY);ACTIVE.set(frame);return ()->{frame.close();if(old==null)ACTIVE.remove();else ACTIVE.set(old);};
     }
     public interface Scope extends AutoCloseable { @Override void close(); }
-    private record Token(boolean pushed,NativePartElement previous,Matrix4f basis) {}
+    private record Token(boolean pushed,NativePartElement previous,Matrix3x2f basis) {}
     private static final class Frame {
-        final NativeDrawing drawing;final UIElement root;final GuiGraphics g;final Matrix4f base,inverse,world;Matrix4f basis;
+        final NativeDrawing drawing;final UIElement root;final GuiGraphicsExtractor g;final Matrix3x2f world;Matrix3x2f basis;
         final Vector2f mouseRoot;
         final Map<String,Integer> counts=new HashMap<>();final Deque<Token> tokens=new ArrayDeque<>();NativePartElement current;int depth;
-        Frame(NativeDrawing drawing,UIElement root,GuiGraphics g,NativePartElement layer,double mouseX,double mouseY) {
-            this.drawing=drawing;this.root=root;this.g=g;base=new Matrix4f(g.pose().last().pose());inverse=new Matrix4f(base).invert();basis=base;
+        Frame(NativeDrawing drawing,UIElement root,GuiGraphicsExtractor g,NativePartElement layer,double mouseX,double mouseY) {
+            this.drawing=drawing;this.root=root;this.g=g;basis=new Matrix3x2f(g.pose());
             mouseRoot=new ElementTransform(root,layer,Math.max(1,layer.sourceWidth),Math.max(1,layer.sourceHeight)).world((float)mouseX,(float)mouseY);
-            world=new Matrix4f(base).mul(new ElementTransform(root,layer,Math.max(1,layer.sourceWidth),Math.max(1,layer.sourceHeight)).matrix().invert());
+            world=new Matrix3x2f(basis).mul(new ElementTransform(root,layer,Math.max(1,layer.sourceWidth),Math.max(1,layer.sourceHeight)).matrix().invert());
         }
         void close(){while(!tokens.isEmpty())end();}
         void begin(String key,String label,float x1,float y1,float x2,float y2,boolean component) {
             if(depth++>0&&!component) {tokens.push(new Token(false,current,basis));return;}
-            Matrix4f relative=new Matrix4f(basis).invert().mul(g.pose().last().pose());
-            var a=relative.transformPosition(new Vector3f(x1,y1,0));var b=relative.transformPosition(new Vector3f(x2,y1,0));var c=relative.transformPosition(new Vector3f(x2,y2,0));var d=relative.transformPosition(new Vector3f(x1,y2,0));
+            var relative=new Matrix3x2f(basis).invert().mul(g.pose());
+            var a=relative.transformPosition(x1,y1,new Vector2f());var b=relative.transformPosition(x2,y1,new Vector2f());var c=relative.transformPosition(x2,y2,new Vector2f());var d=relative.transformPosition(x1,y2,new Vector2f());
             float x=Math.min(Math.min(a.x,b.x),Math.min(c.x,d.x)),y=Math.min(Math.min(a.y,b.y),Math.min(c.y,d.y));
             float w=Math.max(1,Math.max(Math.max(a.x,b.x),Math.max(c.x,d.x))-x),h=Math.max(1,Math.max(Math.max(a.y,b.y),Math.max(c.y,d.y))-y);
             var piece=drawing.pieces.computeIfAbsent(key,k->new Piece(k,label,x,y,w,h,component));
@@ -82,24 +82,24 @@ public final class NativeDrawing {
             if(drawing.unstable.contains(key)) element=null;
             tokens.push(new Token(element!=null||hidden,current,basis));current=element;
             if(element!=null||hidden) {
-                g.flush();g.pose().pushPose();
-                if(hidden)g.pose().scale(0,0,1);
-                else {basis=new Matrix4f(world).mul(new ElementTransform(root,element,piece.width,piece.height).matrix()).translate(-piece.x,-piece.y,0);g.pose().last().pose().set(new Matrix4f(basis).mul(relative));}
+                g.pose().pushMatrix();
+                if(hidden)g.pose().scale(0,0);
+                else {basis=new Matrix3x2f(world).mul(new ElementTransform(root,element,piece.width,piece.height).matrix()).translate(-piece.x,-piece.y);g.pose().set(new Matrix3x2f(basis).mul(relative));}
             }
         }
-        void end(){if(tokens.isEmpty())return;var token=tokens.pop();if(token.pushed){g.flush();g.pose().popPose();}current=token.previous;basis=token.basis;depth--;}
+        void end(){if(tokens.isEmpty())return;var token=tokens.pop();if(token.pushed)g.pose().popMatrix();current=token.previous;basis=token.basis;depth--;}
     }
-    public static void begin(GuiGraphics g,String kind,float x1,float y1,float x2,float y2) {
+    public static void begin(GuiGraphicsExtractor g,String kind,float x1,float y1,float x2,float y2) {
         var f=ACTIVE.get();if(f==null)return;
         if(f.depth>0){f.depth++;f.tokens.push(new Token(false,f.current,f.basis));return;}
-        String site=StackWalker.getInstance().walk(stream->stream.takeWhile(s->!s.getClassName().equals("com.pureneko.vjce.integration.NativePage")).filter(s->!s.getClassName().equals(NativeDrawing.class.getName())&&!s.getClassName().startsWith("com.pureneko.vjce.mixin.")&&!s.getClassName().equals("net.minecraft.client.gui.GuiGraphics")&&!s.getClassName().startsWith("org.spongepowered.")).limit(7).map(s->s.getClassName()+"."+s.getMethodName()+":"+s.getLineNumber()).reduce("",(a,b)->a+"|"+b));
+        String site=StackWalker.getInstance().walk(stream->stream.takeWhile(s->!s.getClassName().equals("com.pureneko.vjce.integration.NativePage")).filter(s->!s.getClassName().equals(NativeDrawing.class.getName())&&!s.getClassName().startsWith("com.pureneko.vjce.mixin.")&&!s.getClassName().equals("net.minecraft.client.gui.GuiGraphicsExtractor")&&!s.getClassName().startsWith("org.spongepowered.")).limit(7).map(s->s.getClassName()+"."+s.getMethodName()+":"+s.getLineNumber()).reduce("",(a,b)->a+"|"+b));
         String id=kind+"_"+Long.toUnsignedString(hash(site),36);int index=f.counts.merge(id,1,Integer::sum)-1;
         f.begin("draw_"+id+"_"+index,kind+" · "+site.split("\\|")[1],x1,y1,x2,y2,false);
     }
     private static long hash(String value){long h=0xcbf29ce484222325L;for(char c:value.toCharArray()){h^=c;h*=0x100000001b3L;}return h;}
     public static void end(){var f=ACTIVE.get();if(f!=null)f.end();}
     public static boolean active(){return ACTIVE.get()!=null;}
-    public static void component(Object object,GuiGraphics g,float x1,float y1,float x2,float y2,String label) {
+    public static void component(Object object,GuiGraphicsExtractor g,float x1,float y1,float x2,float y2,String label) {
         var f=ACTIVE.get();if(f==null)return;
         String key=f.drawing.components.get(object);
         if(key==null){String id=object.getClass().getName();int index=f.counts.merge("component:"+id,1,Integer::sum)-1;key="draw_component_"+Long.toUnsignedString(hash(id),36)+"_"+index;}
@@ -128,8 +128,8 @@ public final class NativeDrawing {
     public static String text(String source){var f=ACTIVE.get();return f==null||f.current==null||f.current.replacementText.isEmpty()?source:f.current.replacementText;}
     public static net.minecraft.util.FormattedCharSequence text(net.minecraft.util.FormattedCharSequence source){var f=ACTIVE.get();return f==null||f.current==null||f.current.replacementText.isEmpty()?source:net.minecraft.network.chat.Component.literal(f.current.replacementText).getVisualOrderText();}
     public static int color(int source){var f=ACTIVE.get();return f==null||f.current==null||!f.current.overrideTextColor?source:f.current.textColor;}
-    public static ResourceLocation texture(ResourceLocation original) {
+    public static Identifier texture(Identifier original) {
         var f=ACTIVE.get();if(f==null||f.current==null||f.current.replacementTexture.isBlank())return original;
-        var id=ResourceLocation.tryParse(f.current.replacementTexture);return id==null?original:id;
+        var id=Identifier.tryParse(f.current.replacementTexture);return id==null?original:id;
     }
 }

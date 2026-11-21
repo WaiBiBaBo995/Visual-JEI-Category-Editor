@@ -127,6 +127,7 @@ public final class CategoryDocument {
         checkId(id);
         checkId(icon);
         if (target == null || layout == null || title == null) throw new IllegalArgumentException("Null category property");
+        if (target.equals("minecraft:fuel")) target = "minecraft:smelting_fuel";
         if (!target.isEmpty()) checkId(target);
         if (width < 18 || width > 2048 || height < 18 || height > 2048) throw new IllegalArgumentException("Canvas size must be 18..2048");
         if (recipes == null || fields == null || bindings == null || catalysts == null || nativeOriginElements == null) throw new IllegalArgumentException("Missing category arrays");

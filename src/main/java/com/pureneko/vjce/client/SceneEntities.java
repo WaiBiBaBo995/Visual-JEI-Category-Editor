@@ -6,8 +6,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.*;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.*;
@@ -23,22 +25,23 @@ final class SceneEntities implements ISceneEntityRenderHook {
     SceneEntities(TrackedDummyWorld world, ListTag rows) {
         if (rows.size() > 32) throw new IllegalArgumentException("Scene supports at most 32 entities");
         for (int i = 0; i < rows.size(); i++) {
-            var row = rows.getCompound(i);
-            var id = ResourceLocation.tryParse(row.getString("id"));
+            var row = rows.getCompoundOrEmpty(i);
+            var storedId = row.getStringOr("id", "");
+            var data = SceneNbt.upgrade(net.minecraft.util.datafix.fixes.References.ENTITY, row, storedId, row.getCompoundOrEmpty("data")).copy();
+            var id = Identifier.tryParse(data.getStringOr("id", storedId));
             var type = id == null ? null : BuiltInRegistries.ENTITY_TYPE.getOptional(id).orElse(null);
-            if (type == null || type == EntityType.PLAYER) throw new IllegalArgumentException("Unsupported scene entity: " + row.getString("id"));
-            Entity entity = type.create(world);
+            if (type == null || type == EntityType.PLAYER) throw new IllegalArgumentException("Unsupported scene entity: " + row.getStringOr("id", ""));
+            Entity entity = type.create(world, EntitySpawnReason.LOAD);
             if (entity == null) throw new IllegalArgumentException("Entity requires gameplay context: " + id);
-            var data = row.getCompound("data").copy();
             if (data.contains("Passengers") || data.contains("RootVehicle")) throw new IllegalArgumentException("Scene passengers are not supported");
             for (String key : List.of("id", "UUID", "UUIDMost", "UUIDLeast", "Pos", "Motion", "Rotation")) data.remove(key);
-            entity.load(data); entity.setUUID(UUID.randomUUID());
-            double x = row.getDouble("x"), y = row.getDouble("y"), z = row.getDouble("z");
+            entity.load(TagValueInput.create(ProblemReporter.DISCARDING, world.registryAccess(), data)); entity.setUUID(UUID.randomUUID());
+            double x = row.getDoubleOr("x", 0), y = row.getDoubleOr("y", 0), z = row.getDoubleOr("z", 0);
             if (!coordinate(x) || !coordinate(y) || !coordinate(z)) throw new IllegalArgumentException("Entity position must be finite and within -64..64");
-            float yaw = row.getFloat("yaw"), pitch = row.getFloat("pitch"),roll=row.getFloat("roll");
-            float scale = row.contains("scale") ? row.getFloat("scale") : 1;
+            float yaw = row.getFloatOr("yaw", 0), pitch = row.getFloatOr("pitch", 0),roll=row.getFloatOr("roll", 0);
+            float scale = row.contains("scale") ? row.getFloatOr("scale", 0) : 1;
             if (!Float.isFinite(yaw) || !Float.isFinite(pitch) || !Float.isFinite(roll) || !Float.isFinite(scale) || scale < .05f || scale > 16) throw new IllegalArgumentException("Invalid entity angle or scale (0.05..16)");
-            Pose pose = row.getString("pose").isBlank() ? Pose.STANDING : Pose.valueOf(row.getString("pose").toUpperCase(Locale.ROOT));
+            Pose pose = row.getStringOr("pose", "").isBlank() ? Pose.STANDING : Pose.valueOf(row.getStringOr("pose", "").toUpperCase(Locale.ROOT));
             var entry = new Entry(entity, new Vec3(x, y, z), yaw, pitch, roll, scale, pose);
             anchor(entry); world.addEntity(entity);
             if (world.getEntity(entity.getId()) != entity) throw new IllegalArgumentException("Entity creation was cancelled: " + id);
@@ -57,7 +60,7 @@ final class SceneEntities implements ISceneEntityRenderHook {
         entity.setNoGravity(true); entity.noPhysics = true; entity.setInvulnerable(true); entity.setSilent(true);
         if (entity instanceof Mob mob) mob.setNoAi(true);
         entity.setDeltaMovement(Vec3.ZERO);
-        entity.moveTo(entry.position.x, entry.position.y, entry.position.z, entry.yaw, entry.pitch);
+        entity.snapTo(entry.position.x, entry.position.y, entry.position.z, entry.yaw, entry.pitch);
         entity.setPose(entry.pose); entity.setYHeadRot(entry.yaw); entity.setYBodyRot(entry.yaw);
         entity.setOldPosAndRot();
         if (entity instanceof LivingEntity living) {
@@ -82,17 +85,18 @@ final class SceneEntities implements ISceneEntityRenderHook {
 
     static CompoundTag defaults(String id) {
         var row = new CompoundTag(); row.putString("id", id);
+        row.putInt("dataVersion", SceneNbt.currentVersion());
         row.putDouble("x", 0); row.putDouble("y", 0); row.putDouble("z", 0);
         row.putFloat("yaw", frontQuarterYaw(BlockSceneElement.DEFAULT_CAMERA_YAW));
         row.putFloat("pitch", 0); row.putFloat("scale", 1); row.putString("pose", "STANDING");
         var data = new CompoundTag();
         try {
             data = switch (id) {
-                case "minecraft:item" -> TagParser.parseTag("{Item:{id:\"minecraft:stone\",count:1},Age:-32768s,PickupDelay:32767s}");
-                case "minecraft:item_display" -> TagParser.parseTag("{item:{id:\"minecraft:stone\",count:1}}");
-                case "minecraft:block_display" -> TagParser.parseTag("{block_state:{Name:\"minecraft:stone\"}}");
-                case "minecraft:falling_block" -> TagParser.parseTag("{BlockState:{Name:\"minecraft:sand\"},Time:1}");
-                case "minecraft:text_display" -> TagParser.parseTag("{text:'{\"text\":\"VJCE\"}'}");
+                case "minecraft:item" -> TagParser.parseCompoundFully("{Item:{id:\"minecraft:stone\",count:1},Age:-32768s,PickupDelay:32767s}");
+                case "minecraft:item_display" -> TagParser.parseCompoundFully("{item:{id:\"minecraft:stone\",count:1}}");
+                case "minecraft:block_display" -> TagParser.parseCompoundFully("{block_state:{Name:\"minecraft:stone\"}}");
+                case "minecraft:falling_block" -> TagParser.parseCompoundFully("{BlockState:{Name:\"minecraft:sand\"},Time:1}");
+                case "minecraft:text_display" -> TagParser.parseCompoundFully("{text:'{\"text\":\"VJCE\"}'}");
                 default -> data;
             };
         } catch (Exception e) { throw new IllegalStateException(e); }

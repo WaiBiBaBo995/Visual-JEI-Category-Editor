@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "vjce",
+  "version": "${version}",
+  "name": "Visual JEI Category Editor",
+  "description": "LDLib2-based visual JEI category and display recipe editor.",
+  "authors": ["pureneko"],
+  "license": "LGPL-3.0-only",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.pureneko.vjce.VisualJeiCategoryEditor"],
+    "jei_mod_plugin": ["com.pureneko.vjce.integration.VjceJeiPlugin"]
+  },
+  "mixins": ["vjce.mixins.json"],
+  "depends": {
+    "fabricloader": ">=${loader}",
+    "fabric-api": "*",
+    "fabric-language-kotlin": "*",
+    "minecraft": "${minecraft}",
+    "java": ">=25",
+    "ldlib2": ">=${ldlib2}",
+    "jei": ">=${jei}"
+  }
+}

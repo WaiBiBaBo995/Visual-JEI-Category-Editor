@@ -18,7 +18,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BlockItemStateProperties;
@@ -41,7 +41,7 @@ public final class SceneBlockImportScenario implements UIScenario {
             var stack=new ItemStack(Items.PURPLE_SHULKER_BOX,2);
             stack.set(DataComponents.BLOCK_STATE,BlockItemStateProperties.EMPTY.with(ShulkerBoxBlock.FACING,Direction.EAST));
             var data=new CompoundTag(); data.putString("Lock","qa-key");
-            stack.set(DataComponents.BLOCK_ENTITY_DATA,CustomData.of(data));
+            stack.set(DataComponents.BLOCK_ENTITY_DATA,net.minecraft.world.item.component.TypedEntityData.of(net.minecraft.world.level.block.entity.BlockEntityType.CHEST, data));
             stack.set(DataComponents.CONTAINER,ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND,3))));
             inventory.setItem(9,stack);
             inventory.setItem(0,new ItemStack(Items.APPLE));
@@ -74,10 +74,10 @@ public final class SceneBlockImportScenario implements UIScenario {
                         c.check("block ID is used as resource name",provider(c).resourceProvider.getResourceName(provider(c).getSelected()).startsWith("minecraft_purple_shulker_box"));
                         c.check("block state component restores east orientation",scene.getDummyWorld().getBlockState(BlockPos.ZERO).getValue(ShulkerBoxBlock.FACING)==Direction.EAST);
                         var tile=(ShulkerBoxBlockEntity)scene.getDummyWorld().getBlockEntity(BlockPos.ZERO);
-                        c.check("block entity restores raw tag and implicit contents",tile.saveWithoutMetadata(c.player().level().registryAccess()).getString("Lock").equals("qa-key")
+                        c.check("block entity restores raw tag and implicit contents",tile.saveWithoutMetadata(c.player().level().registryAccess()).getStringOr("Lock", "").equals("qa-key")
                                 && tile.getItem(0).is(Items.DIAMOND) && tile.getItem(0).getCount()==3);
                     } finally { scene.release(); }
-                    c.check("inventory stack and components were not consumed or changed",ItemStack.matches(c.player().getInventory().getItem(9),c.get("fixtureItem")));
+                    c.check("inventory stack and components were not consumed or changed",ItemStack.matches(c.player().getInventory().getItem(9),c.<ItemStack>get("fixtureItem")));
                 });
         menu(s,"vjce.asset.from_inventory");
         pick(s,"vjce_block_inventory_9");
@@ -85,7 +85,7 @@ public final class SceneBlockImportScenario implements UIScenario {
                     var value=remember(c);
                     var paths=c.<List<IResourcePath>>get("addedPaths");
                     return !paths.getFirst().equals(paths.getLast())
-                            && !provider(c).resourceProvider.getResource(paths.getFirst()).getString("assetId").equals(value.getString("assetId"));
+                            && !provider(c).resourceProvider.getResource(paths.getFirst()).getStringOr("assetId", "").equals(value.getStringOr("assetId", ""));
                 });
         menu(s,"vjce.asset.from_jei");
         s.waitUntil("JEI block grid mounted",c->root(c).selectId("vjce_ingredient_cell").count()>2)
@@ -96,14 +96,14 @@ public final class SceneBlockImportScenario implements UIScenario {
                 .waitUntil("filtered block cell visible",c->root(c).selectId("vjce_ingredient_cell").count()==1)
                 .screenshot("block_jei_picker");
         pick(s,"vjce_ingredient_cell");
-        s.check("JEI click creates purpur resource",c->remember(c).getCompound("state").getString("Name").equals("minecraft:purpur_block"));
+        s.check("JEI click creates purpur resource",c->remember(c).getCompoundOrEmpty("state").getStringOr("Name", "").equals("minecraft:purpur_block"));
         menu(s,"vjce.asset.default_block");
-        s.check("default resource creation is still available",c->remember(c).getCompound("state").getString("Name").equals("minecraft:stone"))
+        s.check("default resource creation is still available",c->remember(c).getCompoundOrEmpty("state").getStringOr("Name", "").equals("minecraft:stone"))
                 .step("check modded block resource conversion if present",c->{
-                    var id=ResourceLocation.parse("mekanism:basic_fluid_tank");
+                    var id=Identifier.parse("mekanism:basic_fluid_tank");
                     if (BuiltInRegistries.ITEM.containsKey(id)) {
-                        var data=SceneBlockImports.snapshot(new ItemStack(BuiltInRegistries.ITEM.get(id)),c.player().level().registryAccess());
-                        c.check("Mekanism tank exports to a block resource",data.getCompound("state").getString("Name").equals(id.toString()));
+                        var data=SceneBlockImports.snapshot(new ItemStack(BuiltInRegistries.ITEM.getValue(id)),c.player().level().registryAccess());
+                        c.check("Mekanism tank exports to a block resource",data.getCompoundOrEmpty("state").getStringOr("Name", "").equals(id.toString()));
                     }
                 })
                 .closeScreen();

@@ -16,7 +16,7 @@ import mezz.jei.common.input.IInternalKeyMappings;
 import mezz.jei.common.input.UserInput;
 import mezz.jei.common.input.interaction.ApiInputAdapter;
 import mezz.jei.common.input.interaction.IInputInteraction;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.*;
 import net.minecraft.client.gui.screens.Screen;
 import java.util.*;
@@ -47,11 +47,11 @@ public final class NativeSession {
     private org.joml.Vector2f sourceInputPoint(ElementTransform t,double x,double y) {
         var p=inputPoint(t,x,y);var point=t.world(p.x,p.y);return page.drawing.sourcePoint(root(),point.x,point.y,p.x,p.y);
     }
-    private void withTransform(GuiGraphics graphics, ElementTransform t, Runnable drawing) {
-        graphics.flush(); graphics.pose().pushPose();
-        try { t.apply(graphics); drawing.run(); graphics.flush(); } finally { graphics.pose().popPose(); }
+    private void withTransform(GuiGraphicsExtractor graphics, ElementTransform t, Runnable drawing) {
+        graphics.pose().pushMatrix();
+        try { t.apply(graphics); drawing.run(); } finally { graphics.pose().popMatrix(); }
     }
-    public void drawBase(GuiGraphics graphics, IRecipeSlotsView slots, double x, double y) {
+    public void drawBase(GuiGraphicsExtractor graphics, IRecipeSlotsView slots, double x, double y) {
         var e = element("native_layer"); if (!visible(e)) return; var t = pageTransform(e); var p = t.local(x, y);
         withTransform(graphics, t, () -> {
             page.access.vjce$background().draw(graphics, page.layout.getRectWithBorder());
@@ -74,17 +74,17 @@ public final class NativeSession {
             @Override public ScreenPosition getPosition() { return new ScreenPosition(0, 0); }
             @Override public Optional<RecipeSlotUnderMouse> getSlotUnderMouse(double x, double y) {
                 for (int i = owned.size() - 1; i >= 0; i--) {
-                    var pair = owned.get(i); if (!visible(pair.getKey())) continue; var r = pair.getValue().getRect();
+                    var pair = owned.get(i); if (!visible(pair.getKey())) continue; var r = com.pureneko.vjce.integration.NativeSlotTransforms.rect(pair.getValue());
                     var t = transform(pair.getKey(), r.getWidth(), r.getHeight()); NativeSlotTransforms.register(pair.getValue(), t);
                     if (t.contains(x, y)) return Optional.of(new RecipeSlotUnderMouse(pair.getValue(), 0, 0));
                 }
                 return Optional.empty();
             }
-            @Override public void drawWidget(GuiGraphics graphics, double x, double y) {
+            @Override public void drawWidget(GuiGraphicsExtractor graphics, double x, double y) {
                 for (var pair : owned) {
-                    if (!visible(pair.getKey())) continue; var slot = pair.getValue(); var r = slot.getRect();
+                    if (!visible(pair.getKey())) continue; var slot = pair.getValue(); var r = com.pureneko.vjce.integration.NativeSlotTransforms.rect(slot);
                     var t = transform(pair.getKey(), r.getWidth(), r.getHeight()); NativeSlotTransforms.register(slot, t);
-                    withTransform(graphics, t, () -> { graphics.pose().translate(-r.getX(), -r.getY(), 0); slot.draw(graphics, t.contains(x, y)); });
+                    withTransform(graphics, t, () -> { graphics.pose().translate(-r.getX(), -r.getY()); slot.draw(graphics, t.contains(x, y)); });
                 }
             }
         }, owned.stream().map(Map.Entry::getValue).toList());
@@ -93,7 +93,7 @@ public final class NativeSession {
             builder.addWidget(new IRecipeWidget() {
                 @Override public ScreenPosition getPosition() { return new ScreenPosition(0, 0); }
                 @Override public ScreenRectangle getScreenRectangle() { return transform(e, part.width(), part.height()).area(); }
-                @Override public void drawWidget(GuiGraphics graphics, double x, double y) {
+                @Override public void drawWidget(GuiGraphicsExtractor graphics, double x, double y) {
                     var t = transform(e, part.width(), part.height()); var p = t.local(x, y);
                     withTransform(graphics, t, () -> page.widget(part, e).drawWidget(graphics, p.x, p.y));
                 }
@@ -108,7 +108,7 @@ public final class NativeSession {
             @Override public ScreenPosition getPosition() { return new ScreenPosition(0, 0); }
             @Override public ScreenRectangle getScreenRectangle() { return overlay == null ? new ScreenRectangle(0, 0, 0, 0) : pageTransform(overlay).area(); }
             @Override public void tick() { page.layout.tick(); }
-            @Override public void drawWidget(GuiGraphics graphics, double x, double y) {
+            @Override public void drawWidget(GuiGraphicsExtractor graphics, double x, double y) {
                 if (!visible(overlay)) return; var t = pageTransform(overlay); var p = t.local(x, y);
                 withTransform(graphics, t, () -> page.drawOverlay(graphics, completeSlots, p.x, p.y));
             }
@@ -202,13 +202,6 @@ public final class NativeSession {
         return point.x >= 0 && point.y >= 0 && point.x < page.original.getWidth() && point.y < page.original.getHeight();
     }
     @SuppressWarnings("removal")
-    public boolean legacyInput(double x, double y, InputConstants.Key key) {
-        var overlay = element("native_overlay");
-        if (!visible(overlay)) return false;
-        var point = pageTransform(overlay).local(x, y);
-        point = page.drawing.sourcePoint(root(), x, y, point.x, point.y);
-        return inSource(point) && page.original.handleInput(page.recipe, point.x, point.y, key);
-    }
     public void tooltip(ITooltipBuilder tooltip, IRecipeSlotsView slots, double x, double y) {
         var e = element("native_layer"); if (!visible(e)) return; var t = pageTransform(e); if (!t.contains(x, y)) return;
         var p = t.local(x, y); p=page.drawing.sourcePoint(root(),x,y,p.x,p.y); page.original.getTooltip(tooltip, page.recipe, actualSlots.isEmpty() ? slots : completeSlots, p.x, p.y);

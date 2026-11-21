@@ -41,8 +41,8 @@ public final class AllCategoriesAudit {
                 if (before.size() != after.size()) throw new IllegalStateException("Slot count changed: " + before.size() + " -> " + after.size());
                 if (first != null && !after.isEmpty()) {
                     var slot = (IRecipeSlotDrawable) after.getFirst();
-                    if (slot.getRect().getX() != x || slot.getRect().getY() != y) throw new IllegalStateException("Saved placement was not applied");
-                    if (actual.getRecipeSlotUnderMouse(x + slot.getRect().getWidth() / 2.0, y + slot.getRect().getHeight() / 2.0).orElse(null) != slot) throw new IllegalStateException("Edited slot hit-test lost identity");
+                    if (com.pureneko.vjce.integration.NativeSlotTransforms.rect(slot).getX() != x || com.pureneko.vjce.integration.NativeSlotTransforms.rect(slot).getY() != y) throw new IllegalStateException("Saved placement was not applied");
+                    if (actual.getSlotUnderMouse(x + com.pureneko.vjce.integration.NativeSlotTransforms.rect(slot).getWidth() / 2.0, y + com.pureneko.vjce.integration.NativeSlotTransforms.rect(slot).getHeight() / 2.0).map(hit -> ((mezz.jei.api.gui.inputs.RecipeSlotUnderMouse) hit).slot()).orElse(null) != slot) throw new IllegalStateException("Edited slot hit-test lost identity");
                 }
                 if (adapter.blocksTransfer(raw)) throw new IllegalStateException("Layout-only edit disabled transfers");
                 row.put("status", "edited"); row.put("slots", after.size()); row.put("recipeClass", raw.getClass().getName()); edited++;
@@ -63,7 +63,7 @@ public final class AllCategoriesAudit {
         }
         var report = new LinkedHashMap<String, Object>(); report.put("categories", rows); report.put("edited", edited); report.put("empty", empty);
         report.put("limited", limited); report.put("mekanismCategories", mekanism); report.put("errors", errors); report.put("passed", errors.isEmpty());
-        Files.writeString(net.neoforged.fml.loading.FMLPaths.GAMEDIR.get().resolve("vjce-category-audit.json"), ProjectStore.JSON.toJson(report));
+        Files.writeString(net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("vjce-category-audit.json"), ProjectStore.JSON.toJson(report));
         return report;
     }
 }

@@ -10,7 +10,7 @@ import com.lowdragmc.lowdraglib2.uitest.input.Keys;
 import com.pureneko.vjce.data.*;
 import com.pureneko.vjce.integration.*;
 import dev.vfyjxf.taffy.style.TaffyPosition;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.joml.Vector2f;
@@ -59,11 +59,11 @@ public final class CanvasTransformScenario implements UIScenario {
         drag(s, "proportional corner", ctx -> handle(ctx, 1, 1), ctx -> new Vector2f(12, 0), false);
         s.keyUp(Keys.LEFT_CONTROL).check("Ctrl corner retains aspect ratio", ctx -> near(a(ctx).getSizeWidth() / a(ctx).getSizeHeight(), ctx.<Float>get("ratio")))
                 .check("corner keeps opposite corner fixed", ctx -> handle(ctx, -1, -1).distance(ctx.<Vector2f>get("anchor")) < .1f)
-                .step("remember cancelled layout", ctx -> { ctx.put("beforeCancel", a(ctx).getLayout().serializeNBT(com.lowdragmc.lowdraglib2.Platform.getFrozenRegistry())); ctx.put("history", v(ctx).historyStack.getUndoStack().size()); });
+                .step("remember cancelled layout", ctx -> { ctx.put("beforeCancel", layoutData(a(ctx))); ctx.put("history", v(ctx).historyStack.getUndoStack().size()); });
         begin(s, "cancel resize", ctx -> handle(ctx, 1, 0), ctx -> new Vector2f(20, 0));
         s.keyDown(Keys.ESCAPE).keyUp(Keys.ESCAPE);
         release(s);
-        s.check("Esc restores complete original inline layout", ctx -> a(ctx).getLayout().serializeNBT(com.lowdragmc.lowdraglib2.Platform.getFrozenRegistry()).equals(ctx.get("beforeCancel")))
+        s.check("Esc restores complete original inline layout", ctx -> layoutData(a(ctx)).equals(ctx.get("beforeCancel")))
                 .check("cancel creates no history entry", ctx -> v(ctx).historyStack.getUndoStack().size() == ctx.<Integer>get("history"))
                 .keyDown(Keys.LEFT_ALT).keyDown(Keys.LEFT_SHIFT);
         drag(s, "rotate quarter turn", ctx -> center(a(ctx)).add(15, 0), ctx -> new Vector2f(-15, 15), false);
@@ -109,11 +109,11 @@ public final class CanvasTransformScenario implements UIScenario {
                     v(ctx).transforms.clear(); var child = new UIElement().setId("preserved_child"); child.setAllowHitTest(false); a(ctx).addChild(child); ctx.put("child", child);
                     a(ctx).layout(l -> { l.leftPercent(10); l.widthPercent(25); l.height(20); });
                     a(ctx).createHistoryRecorder().record(v(ctx).historyStack, Component.literal("percent layout"), new Object());
-                    ctx.put("percentLayout", a(ctx).getLayout().serializeNBT(com.lowdragmc.lowdraglib2.Platform.getFrozenRegistry()));
+                    ctx.put("percentLayout", layoutData(a(ctx)));
                 }).keyDown(Keys.LEFT_SHIFT);
         drag(s, "percent move", ctx -> center(a(ctx)), ctx -> new Vector2f(11, 6), false);
         s.keyUp(Keys.LEFT_SHIFT).step("undo percent conversion", ctx -> v(ctx).historyStack.undo())
-                .check("undo restores percent and automatic constraints", ctx -> a(ctx).getLayout().serializeNBT(com.lowdragmc.lowdraglib2.Platform.getFrozenRegistry()).equals(ctx.get("percentLayout")))
+                .check("undo restores percent and automatic constraints", ctx -> layoutData(a(ctx)).equals(ctx.get("percentLayout")))
                 .check("undo preserves external child identity", ctx -> a(ctx).getChildren().contains(ctx.<UIElement>get("child"))).closeScreen();
         nativeGeometry(s);
         nativeInput(s);
@@ -124,12 +124,12 @@ public final class CanvasTransformScenario implements UIScenario {
             var manager = VjceJeiPlugin.runtime.getRecipeManager(); Object raw = manager.createRecipeLookup(source.getRecipeType()).get().findFirst().orElseThrow();
             double[] received = new double[4];
             mezz.jei.api.recipe.category.IRecipeCategory<Object> probe = new mezz.jei.api.recipe.category.IRecipeCategory<>() {
-                @Override public mezz.jei.api.recipe.RecipeType<Object> getRecipeType() { return source.getRecipeType(); }
+                @Override public mezz.jei.api.recipe.types.IRecipeType<Object> getRecipeType() { return source.getRecipeType(); }
                 @Override public Component getTitle() { return Component.literal("Input probe"); }
                 @Override public mezz.jei.api.gui.drawable.IDrawable getIcon() { return source.getIcon(); }
                 @Override public int getWidth() { return 100; }
                 @Override public int getHeight() { return 70; }
-                @Override public net.minecraft.resources.ResourceLocation getRegistryName(Object recipe) { return source.getRegistryName(recipe); }
+                @Override public net.minecraft.resources.Identifier getIdentifier(Object recipe) { return source.getIdentifier(recipe); }
                 @Override public void setRecipe(mezz.jei.api.gui.builder.IRecipeLayoutBuilder b, Object recipe, mezz.jei.api.recipe.IFocusGroup f) { source.setRecipe(b, recipe, f); }
                 @Override public void createRecipeExtras(mezz.jei.api.gui.widgets.IRecipeExtrasBuilder b, Object recipe, mezz.jei.api.recipe.IFocusGroup f) {
                     b.addInputHandler(new mezz.jei.api.gui.inputs.IJeiInputHandler() {
@@ -182,14 +182,14 @@ public final class CanvasTransformScenario implements UIScenario {
             var actualSlot = (mezz.jei.api.gui.ingredient.IRecipeSlotDrawable) layout.getRecipeSlotsView().getSlotViews().getFirst();
             var access = (com.pureneko.vjce.mixin.RecipeLayoutAccess) layout; access.vjce$createExtras();
             ctx.check("native slots remain in complete JEI view", layout.getRecipeSlotsView().getSlotViews().size() == data.slots.stream().filter(p -> !p.invisible).count());
-            ctx.check("rotated slot centre returns original identity", layout.getRecipeSlotUnderMouse(51, 40).orElse(null) == actualSlot);
-            ctx.check("axis-aligned rectangle outside rotation is rejected", layout.getRecipeSlotUnderMouse(35, 30).isEmpty());
-            ctx.check("rotated corner inside transformed content is hit", layout.getRecipeSlotUnderMouse(42, 30).orElse(null) == actualSlot);
+            ctx.check("rotated slot centre returns original identity", layout.getSlotUnderMouse(51, 40).map(hit -> ((mezz.jei.api.gui.inputs.RecipeSlotUnderMouse) hit).slot()).orElse(null) == actualSlot);
+            ctx.check("axis-aligned rectangle outside rotation is rejected", layout.getSlotUnderMouse(35, 30).isEmpty());
+            ctx.check("rotated corner inside transformed content is hit", layout.getSlotUnderMouse(42, 30).map(hit -> ((mezz.jei.api.gui.inputs.RecipeSlotUnderMouse) hit).slot()).orElse(null) == actualSlot);
             ctx.check("returned slot supports JEI repeated hit check", ((mezz.jei.api.gui.inputs.RecipeSlotUnderMouse) layout.getSlotUnderMouse(42, 30).orElseThrow()).isMouseOver(42, 30));
             var target = (mezz.jei.common.input.IInputTarget) layout.getInputHandler();
             var screen = new Screen(Component.empty()) {};
             for (int button : List.of(0, 1)) {
-                var press = mezz.jei.common.input.UserInput.fromVanilla(51, 40, button, mezz.jei.common.input.InputPhase.PRESS).orElseThrow();
+                var press = mezz.jei.common.input.UserInput.fromVanilla(new net.minecraft.client.input.MouseButtonEvent(51, 40, new net.minecraft.client.input.MouseButtonInfo(button, 0)), false, mezz.jei.common.input.InputPhase.PRESS).orElseThrow();
                 ctx.check("slot mouse button " + button + " reaches native JEI lookup",
                         target.beginInput(screen, press, mezz.jei.common.Internal.getKeyMappings()).isEmpty());
             }
@@ -204,16 +204,16 @@ public final class CanvasTransformScenario implements UIScenario {
             var reboundLayout = (mezz.jei.api.gui.IRecipeLayoutDrawable) manager.createRecipeLayoutDrawable(reboundAdapter, raw, focus).orElseThrow();
             ((com.pureneko.vjce.mixin.RecipeLayoutAccess) reboundLayout).vjce$createExtras();
             reboundLayout.setPosition(0, 0);
-            Object reboundSlot = reboundLayout.getRecipeSlotUnderMouse(51, 40).orElse(null);
+            Object reboundSlot = reboundLayout.getSlotUnderMouse(51, 40).map(hit -> ((mezz.jei.api.gui.inputs.RecipeSlotUnderMouse) hit).slot()).orElse(null);
             ctx.check("binding-only swap uses target position and source role", reboundSlot instanceof mezz.jei.api.gui.ingredient.IRecipeSlotDrawable view
                     && view.getRole() == mezz.jei.api.recipe.RecipeIngredientRole.OUTPUT);
             ctx.check("binding-only swap keeps native transfer", !reboundAdapter.blocksTransfer(raw));
             ctx.put("transformedLayout", layout);
             return new Screen(Component.literal("transformed native JEI")) {
                 @Override public void tick() { layout.tick(); }
-                @Override public void render(GuiGraphics graphics, int x, int y, float partial) {
+                @Override public void extractRenderState(GuiGraphicsExtractor graphics, int x, int y, float partial) {
                     graphics.fill(0, 0, width, height, 0xff444444); layout.setPosition(80, 90); layout.drawRecipe(graphics, 131, 130);
-                    graphics.drawString(font, "Actual JEI: resized background + rotated/scaled slot and arrow", 40, 40, 0xffffffff, false);
+                    graphics.text(font, "Actual JEI: resized background + rotated/scaled slot and arrow", 40, 40, 0xffffffff, false);
                 }
             };
         }).screenshot("native_transformed_real_jei").closeScreen();
@@ -241,5 +241,11 @@ public final class CanvasTransformScenario implements UIScenario {
         begin(s, name, pos, delta); if (guides) s.check("alignment guide visible during drag", c -> v(c).transforms.hasGuides());
         if (name.equals("Shift move")) s.screenshot("one_pixel_alignment_guides");
         release(s);
+    }
+    private static net.minecraft.nbt.CompoundTag layoutData(UIElement element) {
+        var output = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
+                net.minecraft.util.ProblemReporter.DISCARDING, com.lowdragmc.lowdraglib2.Platform.getFrozenRegistry());
+        element.getLayout().serialize(output);
+        return output.buildResult();
     }
 }

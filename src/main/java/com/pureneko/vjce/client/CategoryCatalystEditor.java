@@ -11,7 +11,7 @@ import com.pureneko.vjce.integration.IngredientAccess;
 import com.pureneko.vjce.integration.ItemPresentationCodec;
 import mezz.jei.api.constants.VanillaTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 final class CategoryCatalystEditor {
@@ -53,8 +53,8 @@ final class CategoryCatalystEditor {
     }
 
     private static boolean validItemId(String value) {
-        var id = ResourceLocation.tryParse(value.strip());
-        return id != null && BuiltInRegistries.ITEM.containsKey(id) && !id.equals(ResourceLocation.withDefaultNamespace("air"));
+        var id = Identifier.tryParse(value.strip());
+        return id != null && BuiltInRegistries.ITEM.containsKey(id) && !id.equals(Identifier.withDefaultNamespace("air"));
     }
 
     private static ItemStack decode(JsonElement encoded) {

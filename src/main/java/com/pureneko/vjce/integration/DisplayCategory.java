@@ -1,5 +1,6 @@
 package com.pureneko.vjce.integration;
 
+import mezz.jei.api.recipe.types.IRecipeType;
 import com.lowdragmc.lowdraglib2.integration.xei.jei.*;
 import com.lowdragmc.lowdraglib2.integration.xei.jei.handler.JEIRecipeSlotHandler;
 import com.pureneko.vjce.client.RecipeUI;
@@ -12,25 +13,25 @@ import mezz.jei.api.gui.widgets.*;
 import mezz.jei.api.recipe.*;
 import net.minecraft.client.gui.navigation.ScreenPosition;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import java.util.*;
 import java.util.function.Function;
 
 /** Same LDLib UI is used by the editor preview and by JEI's real ingredient slots. */
 public class DisplayCategory<T> extends ModularUIRecipeCategory<T> {
     public final CategoryDocument document;
-    private final RecipeType<T> type;
+    private final IRecipeType<T> type;
     protected final Function<T, CategoryDocument.Recipe> resolver;
-    public DisplayCategory(CategoryDocument document, RecipeType<T> type, Function<T, CategoryDocument.Recipe> resolver) {
+    public DisplayCategory(CategoryDocument document, IRecipeType<T> type, Function<T, CategoryDocument.Recipe> resolver) {
         super(recipe -> RecipeUI.create(document, resolver.apply(recipe)));
         this.document = document; this.type = type; this.resolver = resolver;
     }
-    @Override public RecipeType<T> getRecipeType() { return type; }
+    @Override public IRecipeType<T> getRecipeType() { return type; }
     @Override public Component getTitle() { return Component.literal(document.title); }
     @Override public int getWidth() { return document.width; }
     @Override public int getHeight() { return document.height; }
     @Override public IDrawable getIcon() {
-        var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ResourceLocation.parse(document.icon));
+        var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(Identifier.parse(document.icon));
         return VjceJeiPlugin.helpers.getGuiHelper().createDrawableItemStack(new net.minecraft.world.item.ItemStack(item));
     }
     protected String slotName(T recipe, JEIRecipeSlotHandler.Binding binding) {
@@ -95,7 +96,7 @@ public class DisplayCategory<T> extends ModularUIRecipeCategory<T> {
                     .findFirst().ifPresent(binding.slotUpdater()::bind);
         }
     }
-    @Override public ResourceLocation getRegistryName(T recipe) { return ResourceLocation.parse(resolver.apply(recipe).id); }
+    @Override public Identifier getIdentifier(T recipe) { return Identifier.parse(resolver.apply(recipe).id); }
     @Override @SuppressWarnings("unchecked")
     public com.mojang.serialization.Codec<T> getCodec(mezz.jei.api.helpers.ICodecHelper helper, IRecipeManager manager) {
         return com.mojang.serialization.Codec.STRING.flatXmap(id -> document.recipes.stream().filter(recipe -> recipe.id.equals(id)).findFirst()

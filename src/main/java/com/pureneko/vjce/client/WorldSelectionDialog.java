@@ -3,7 +3,6 @@ package com.pureneko.vjce.client;
 import com.lowdragmc.lowdraglib2.gui.ui.*;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.*;
 import com.lowdragmc.lowdraglib2.gui.ui.event.*;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.*;
@@ -42,7 +41,7 @@ final class WorldSelectionDialog extends Dialog {
         contentContainer.layout(l->{l.flex(1);l.minHeight(0);});
         var split=new SplitView.Horizontal(){@Override protected void onLayoutChanged(){super.onLayoutChanged();if(second.isDisplayed()&&getSizeWidth()>0){float max=Math.max(50,Math.min(88,100-160/getSizeWidth()*100));setMaxPercentage(max);if(getPercentage()>max)setPercentage(max);}}};
         split.setId("vjce_world_split");split.setPercentage(75);split.setMinPercentage(50);split.setMaxPercentage(88);split.setBorderSize(5);split.layout(l->{l.widthPercent(100);l.flex(1);l.minHeight(0);});
-        var scroller=new ScrollerView();scroller.layout(l->{l.widthPercent(100);l.flex(1);l.minHeight(0);});split.second.addChild(scroller);var settings=scroller.getContentHost();
+        var scroller=new ScrollerView();scroller.layout(l->{l.widthPercent(100);l.flex(1);l.minHeight(0);});split.second.addChild(scroller);var settings=scroller.viewContainer;
         var previousRatio=new float[]{75};
         addContent(new Button().setText("vjce.world.toggle_settings").setOnClick(e->{boolean visible=split.second.isDisplayed();if(visible)previousRatio[0]=split.getPercentage();split.second.setDisplay(!visible);split.setMaxPercentage(visible?100:88);split.setPercentage(visible?100:previousRatio[0]);}).setId("vjce_world_toggle_settings").layout(l->{l.height(18);l.minHeight(18);l.flexShrink(0);}));
         settings.addChild(new Label().setText("vjce.world.help").textStyle(s->s.textWrap(com.lowdragmc.lowdraglib2.gui.ui.data.TextWrap.WRAP).adaptiveHeight(true)).layout(l->l.widthPercent(100)));
@@ -52,7 +51,7 @@ final class WorldSelectionDialog extends Dialog {
                 var row=Forms.row();row.layout(l->{l.minHeight(20);l.flexShrink(0);});
                 final int a=axis;String key=side+"_"+"xyz".charAt(axis);
                 row.addChild(new Label().setText(""+"xyz".charAt(axis)).layout(l->{l.width(12);l.flexShrink(0);}));
-                var input=new HoverNumberField(a==1?source.getMinBuildHeight():-30000000,a==1?source.getMaxBuildHeight()-1:29999999);
+                var input=new HoverNumberField(a==1?source.getMinY():-30000000,a==1?source.getMaxY():29999999);
                 input.setTextResponder(value->{try{int n=Integer.parseInt(value);var old=side.equals("from")?from:to;
                     var pos=new BlockPos(a==0?n:old.getX(),a==1?n:old.getY(),a==2?n:old.getZ());if(side.equals("from"))from=pos;else to=pos;updateStatus();
                 }catch(NumberFormatException ignored){}});
@@ -91,8 +90,8 @@ final class WorldSelectionDialog extends Dialog {
     }
     WorldSceneCapture.Selection selection(){return WorldSceneCapture.Selection.of(from,to);}
     private void nearPlayer(){var player=Minecraft.getInstance().player;if(player!=null)frameAround(player.getOnPos());}
-    private void frameAround(BlockPos center){preview.frame(new BlockPos(center.getX()-sceneRange[0],Math.max(source.getMinBuildHeight(),center.getY()-sceneRange[1]),center.getZ()-sceneRange[2]),
-            new BlockPos(center.getX()+sceneRange[0],Math.min(source.getMaxBuildHeight()-1,center.getY()+sceneRange[1]),center.getZ()+sceneRange[2]));}
+    private void frameAround(BlockPos center){preview.frame(new BlockPos(center.getX()-sceneRange[0],Math.max(source.getMinY(),center.getY()-sceneRange[1]),center.getZ()-sceneRange[2]),
+            new BlockPos(center.getX()+sceneRange[0],Math.min(source.getMaxY(),center.getY()+sceneRange[1]),center.getZ()+sceneRange[2]));}
     private void pick(BlockPos pos){if(nextFrom)from=pos.immutable();else to=pos.immutable();nextFrom=!nextFrom;syncCoordinates();}
     private void syncCoordinates(){
         for(var side:List.of("from","to")){var p=side.equals("from")?from:to;int[] values={p.getX(),p.getY(),p.getZ()};for(int a=0;a<3;a++)coordinates.get(side+"_"+"xyz".charAt(a)).setText(Integer.toString(values[a]),false);}
@@ -106,10 +105,6 @@ final class WorldSelectionDialog extends Dialog {
         private final SceneRenderGuard renderGuard;
         private int lastFailures = -1;
         net.minecraft.world.phys.AABB framed;
-        private org.joml.Matrix4f viewProjection;
-        private final int[] viewport=new int[4];
-        private double projectionScale;
-        private int projectionHeight;
         WorldView(){
             disableTransformGizmo();scene.useCacheBuffer(true).syncCompile(true);scene.createScene(source);scene.setTickWorld(false);scene.setRenderFacing(false);scene.setRenderSelect(false);scene.useOrtho(true);
             renderGuard=SceneRenderGuard.attach(scene.getRenderer());
@@ -131,25 +126,33 @@ final class WorldSelectionDialog extends Dialog {
         private void fit(){if(framed!=null){double radius=Math.sqrt(framed.getXsize()*framed.getXsize()+framed.getYsize()*framed.getYsize()+framed.getZsize()*framed.getZsize())/2+1;scene.setOrthoRange((float)(radius*Math.max(1,scene.getContentWidth()/Math.max(1,scene.getContentHeight()))));}}
         @Override public void screenTick(){super.screenTick();fit();int failures=renderGuard.failureCount();if(failures!=lastFailures){lastFailures=failures;renderWarning.setText(Component.translatable("vjce.world.render_warning",failures));renderWarning.setDisplay(failures>0);}}
         @Override protected void onRemoved(){SceneRenderGuard.detach(scene.getRenderer());super.onRemoved();}
-        @Override public Optional<org.joml.Vector2f> project(Vector3f pos){
-            if(viewProjection==null)return Optional.empty();
-            var clip=viewProjection.transform(new org.joml.Vector4f(pos,1));
-            if(Math.abs(clip.w)<.000001)return Optional.empty();
-            float x=viewport[0]+(clip.x/clip.w+1)*viewport[2]/2;
-            float y=viewport[1]+(clip.y/clip.w+1)*viewport[3]/2;
-            return Optional.of(new org.joml.Vector2f((float)(x/projectionScale),(float)((projectionHeight-y)/projectionScale)));
+        private org.joml.Matrix4f viewProjection;
+
+        @Override public Optional<org.joml.Vector2f> project(Vector3f pos) {
+            if (viewProjection == null) return Optional.empty();
+            var clip = viewProjection.transform(new org.joml.Vector4f(pos, 1));
+            if (Math.abs(clip.w) < .000001) return Optional.empty();
+            float x = scene.getContentX() + (clip.x / clip.w + 1) * scene.getContentWidth() / 2;
+            float y = scene.getContentY() + (1 - clip.y / clip.w) * scene.getPaddingHeight() / 2;
+            return Optional.of(scene.getWorldMouse(x, y));
         }
-        @Override protected void renderAfterWorld(MultiBufferSource buffer,float partial){
-            viewProjection=new org.joml.Matrix4f(com.mojang.blaze3d.systems.RenderSystem.getProjectionMatrix()).mul(com.mojang.blaze3d.systems.RenderSystem.getModelViewMatrix());
-            org.lwjgl.opengl.GL11.glGetIntegerv(org.lwjgl.opengl.GL11.GL_VIEWPORT,viewport);
-            var surface=com.lowdragmc.lowdraglib2.gui.ui.rendering.UISurface.current();projectionScale=surface.guiScale();projectionHeight=surface.framebufferHeight();
-            super.renderAfterWorld(buffer,partial);
-            try{
-                var selected=selection();selected.validate();
-                LevelRenderer.renderLineBox(new PoseStack(),buffer.getBuffer(RenderType.lines()),selected.bounds(),1,1,1,1);
-                if(includeEntities.isOn())for(var entity:WorldSceneCapture.selectedEntities(source,selected))LevelRenderer.renderLineBox(new PoseStack(),buffer.getBuffer(RenderType.lines()),entity.getBoundingBox(),.3f,1,.3f,1);
-                if(buffer instanceof MultiBufferSource.BufferSource buffers)buffers.endBatch(RenderType.lines());
-            }catch(IllegalArgumentException ignored){}
+
+        @Override protected void renderAfterWorld(com.lowdragmc.lowdraglib2.client.scene.SceneRenderContext context) {
+            viewProjection = ((com.pureneko.vjce.mixin.SceneCameraAccess) context.renderer()).vjce$viewProjection();
+            super.renderAfterWorld(context);
+            try {
+                var selected = selection();
+                selected.validate();
+                var lines = context.bufferSource().getBuffer(net.minecraft.client.renderer.rendertype.RenderTypes.lines());
+                var bounds = net.minecraft.world.phys.shapes.Shapes.create(selected.bounds());
+                net.minecraft.client.renderer.ShapeRenderer.renderShape(context.poseStack(), lines, bounds, 0, 0, 0, -1, 1);
+                if (includeEntities.isOn()) {
+                    for (var entity : WorldSceneCapture.selectedEntities(source, selected)) {
+                        var box = net.minecraft.world.phys.shapes.Shapes.create(entity.getBoundingBox());
+                        net.minecraft.client.renderer.ShapeRenderer.renderShape(context.poseStack(), lines, box, 0, 0, 0, 0xff4cff4c, 1);
+                    }
+                }
+            } catch (IllegalArgumentException ignored) {}
         }
     }
 }

@@ -5,14 +5,14 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.*;
 import com.pureneko.vjce.data.*;
 import com.pureneko.vjce.integration.*;
 import com.pureneko.vjce.VisualJeiCategoryEditor;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.network.chat.Component;
 import com.lowdragmc.lowdraglib2.editor.settings.*;
 import com.lowdragmc.lowdraglib2.gui.ui.style.StylesheetManager;
 import java.util.*;
 
 public final class VjceEditor extends Editor {
-    public static void open() { EditorWindow.show(ResourceLocation.fromNamespaceAndPath("vjce", "editor"), VjceEditor::new); }
+    public static void open() { EditorWindow.show(Identifier.fromNamespaceAndPath("vjce", "editor"), VjceEditor::new); }
     public VjceEditor() {
         leftWindow.setDisplay(false);
         if (leftWindow.getParentWindow() != null) leftWindow.getParentWindow().removeSplitWindow(leftWindow);
@@ -40,8 +40,8 @@ public final class VjceEditor extends Editor {
         }
         return super.getTitle();
     }
-    public static ResourceLocation overrideId(ResourceLocation category) {
-        return ResourceLocation.fromNamespaceAndPath("vjce", "override/" + category.getNamespace() + "/" + category.getPath());
+    public static Identifier overrideId(Identifier category) {
+        return Identifier.fromNamespaceAndPath("vjce", "override/" + category.getNamespace() + "/" + category.getPath());
     }
     public static VjceProject projectForCategory(String id) {
         var original = VjceJeiPlugin.originals.get(id);
@@ -49,7 +49,7 @@ public final class VjceEditor extends Editor {
         if (original instanceof DisplayCategory<?> custom && !(original instanceof CapturedCategory<?>)) return new VjceProject(ProjectStore.copy(custom.document));
         var saved = VisualJeiCategoryEditor.STORE.loadAll().stream().filter(doc -> doc.target.equals(id)).findFirst();
         if (saved.isPresent()) return new VjceProject(ProjectStore.copy(saved.get()));
-        var document = new CategoryDocument(); document.id = overrideId(ResourceLocation.parse(id)).toString();
+        var document = new CategoryDocument(); document.id = overrideId(Identifier.parse(id)).toString();
         document.target = id; document.title = original.getTitle().getString();
         document.width = Math.clamp(original.getWidth(), 18, 2048); document.height = Math.clamp(original.getHeight(), 18, 2048);
         return new VjceProject(document);
@@ -74,7 +74,7 @@ public final class VjceEditor extends Editor {
             refresh();
         }
         @SuppressWarnings({"unchecked", "rawtypes"}) void refresh() {
-            var host = list.getContentHost(); host.clearAllChildren();
+            var host = list.viewContainer; host.clearAllChildren();
             int matches=0;
             host.addChild(new Label().setText("vjce.library.saved"));
             for (var document : VisualJeiCategoryEditor.STORE.loadAll()) {
@@ -100,9 +100,9 @@ public final class VjceEditor extends Editor {
             var text=new StringBuilder(title);
             for(var value:ids){
                 text.append(' ').append(value);
-                var id=ResourceLocation.tryParse(value);
+                var id=Identifier.tryParse(value);
                 if(id!=null){var namespace=id.getNamespace();text.append(' ').append(namespace);
-                    net.neoforged.fml.ModList.get().getModContainerById(namespace).ifPresent(mod->text.append(' ').append(mod.getModInfo().getDisplayName()));}
+                    net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer(namespace).ifPresent(mod->text.append(' ').append(mod.getMetadata().getName()));}
             }
             return text.toString().toLowerCase(Locale.ROOT).contains(search);
         }

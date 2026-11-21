@@ -6,7 +6,7 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.gui.ingredient.IRecipeSlotDrawable;
 import mezz.jei.api.helpers.ICodecHelper;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.crafting.*;
 import java.util.*;
 
@@ -36,7 +36,7 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
         var capture = new LayoutCapture(original.getWidth(), original.getHeight());
         original.setRecipe(capture.builder, recipe, focuses);
         capture.finish();
-        var id = original.getRegistryName(recipe);
+        var id = original.getIdentifier(recipe);
         String stableId;
         if (id == null) {
             try {
@@ -46,8 +46,8 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
         } else stableId = id.toString();
         var result = capture.toDocument(stableId);
         if (recipe instanceof RecipeHolder<?> holder && holder.value() instanceof AbstractCookingRecipe cooking) {
-            result.duration = cooking.getCookingTime();
-            result.values.put("experience", (double) cooking.getExperience());
+            result.duration = cooking.cookingTime();
+            result.values.put("experience", (double) cooking.experience());
         }
         if (recipe instanceof mezz.jei.api.recipe.vanilla.IJeiFuelingRecipe fuel) result.duration = fuel.getBurnTime();
         if (recipe instanceof mezz.jei.api.recipe.vanilla.IJeiCompostingRecipe compost) result.values.put("chance", (double) compost.getChance());
@@ -82,7 +82,7 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
     }
     private CategoryDocument.Recipe configured(T recipe) {
         if (additions.contains(recipe)) return records.get(recipe);
-        var id = original.getRegistryName(recipe);
+        var id = original.getIdentifier(recipe);
         if (id != null) return document.recipes.stream().filter(r -> r.source.equals(id.toString()) || (r.source.isEmpty() && r.id.equals(id.toString()))).findFirst().orElse(null);
         if (document.recipes.stream().noneMatch(r -> !r.source.isEmpty())) return null;
         var source = capture(original, recipe).source;
@@ -90,7 +90,7 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
     }
     private void preserveOriginal(T recipe, RuntimeException error) {
         if (captureFailures.add(recipe)) com.pureneko.vjce.VisualJeiCategoryEditor.LOG.warn(
-                "VJCE could not capture {} / {}; preserving the original JEI page", getRecipeType().getUid(), original.getRegistryName(recipe), error);
+                "VJCE could not capture {} / {}; preserving the original JEI page", getRecipeType().getUid(), original.getIdentifier(recipe), error);
     }
     @Override public void setRecipe(mezz.jei.api.gui.builder.IRecipeLayoutBuilder builder, T recipe, IFocusGroup focuses) {
         if (captureFailures.contains(recipe)) { original.setRecipe(builder, recipe, focuses); return; }
@@ -125,11 +125,10 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
             for (var slot : active.actualSlots) slotSessions.put(slot, new java.lang.ref.WeakReference<>(active));
         }
     }
-    @Override public void draw(T recipe, mezz.jei.api.gui.ingredient.IRecipeSlotsView slots, net.minecraft.client.gui.GuiGraphics graphics, double x, double y) {
+    @Override public void draw(T recipe, mezz.jei.api.gui.ingredient.IRecipeSlotsView slots, net.minecraft.client.gui.GuiGraphicsExtractor graphics, double x, double y) {
         var active = activeSession(recipe, slots);
         if (active.isPresent()) active.get().drawBase(graphics, slots, x, y);
         else {
-            var background = original.getBackground(); if (background != null) background.draw(graphics);
             original.draw(recipe, slots, graphics, x, y);
         }
     }
@@ -154,8 +153,8 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
         catch (RuntimeException error) { preserveOriginal(recipe, error); return false; }
     }
     public void addDisplay(T recipe, CategoryDocument.Recipe data) { records.put(recipe, data); additions.add(recipe); }
-    @Override public ResourceLocation getRegistryName(T recipe) { return additions.contains(recipe) ? ResourceLocation.parse(presentation(recipe).id) : original.getRegistryName(recipe); }
-    @Override public List<ResourceLocation> getSourceRecipeIds(T recipe) { return additions.contains(recipe) ? List.of() : original.getSourceRecipeIds(recipe); }
+    @Override public Identifier getIdentifier(T recipe) { return additions.contains(recipe) ? Identifier.parse(presentation(recipe).id) : original.getIdentifier(recipe); }
+    @Override public List<Identifier> getSourceRecipeIds(T recipe) { return additions.contains(recipe) ? List.of() : original.getSourceRecipeIds(recipe); }
     @Override @SuppressWarnings("unchecked")
     public Codec<T> getCodec(ICodecHelper helper, mezz.jei.api.recipe.IRecipeManager manager) {
         var nativeCodec = original.getCodec(helper, manager);
@@ -185,10 +184,5 @@ public final class CapturedCategory<T> extends DisplayCategory<T> {
             catch (RuntimeException error) { preserveOriginal(recipe, error); }
         }
         original.onDisplayedIngredientsUpdate(recipe, slots, focuses);
-    }
-    @Override @SuppressWarnings("removal") public boolean handleInput(T recipe, double x, double y, com.mojang.blaze3d.platform.InputConstants.Key key) {
-        if (captureFailures.contains(recipe)) return original.handleInput(recipe, x, y, key);
-        return sessions.entrySet().stream().filter(entry -> entry.getKey().recipe() == recipe).reduce((a, b) -> b)
-                .map(entry -> entry.getValue().legacyInput(x, y, key)).orElse(false);
     }
 }

@@ -9,7 +9,8 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 
 /** Explicit in-client diagnostic: exercises the real JEI layout and ingredient codecs. */
 public final class RuntimeAudit {
-    public static final Set<String> VANILLA = Set.of("crafting", "stonecutting", "smelting", "smoking", "blasting", "campfire_cooking", "smithing", "compostable", "fuel", "brewing", "anvil", "grindstone");
+    public static final Set<String> VANILLA = Set.of("crafting", "stonecutting", "smelting", "smoking", "blasting", "campfire_cooking",
+            "smithing", "compostable", "smelting_fuel", "blasting_fuel", "smoking_fuel", "brewing", "anvil", "grindstone");
     private RuntimeAudit() {}
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static Path run() throws Exception {
@@ -61,7 +62,7 @@ public final class RuntimeAudit {
                     // Display overrides must disable transfers; pure layout changes must not.
                     if (adapter.blocksTransfer(sample)) throw new IllegalStateException("Untouched original blocks transfer");
                     captured.overrideIngredients = true; doc.recipes.add(captured);
-                    if (!adapter.blocksTransfer(sample) && original.getRegistryName(sample) != null) throw new IllegalStateException("Changed display allows transfer");
+                    if (!adapter.blocksTransfer(sample) && original.getIdentifier(sample) != null) throw new IllegalStateException("Changed display allows transfer");
                     if (entry.getKey().equals("minecraft:crafting")) {
                         var player = net.minecraft.client.Minecraft.getInstance().player;
                         var menu = new net.minecraft.world.inventory.CraftingMenu(0, player.getInventory());
@@ -102,17 +103,22 @@ public final class RuntimeAudit {
                 var live = manager.createRecipeLookup(registered.getRecipeType()).get().toList();
                 for (var data : registered.document.recipes) {
                     if (data.hidden && !data.source.isBlank()) {
-                        if (live.stream().anyMatch(raw -> data.source.equals(String.valueOf(registered.getRegistryName(raw))))) throw new IllegalStateException("Hidden display remains visible");
-                        if (data.source.equals("minecraft:stick") && net.minecraft.client.Minecraft.getInstance().level.getRecipeManager().byKey(net.minecraft.resources.ResourceLocation.parse(data.source)).isEmpty()) throw new IllegalStateException("Actual recipe was modified");
+                        if (live.stream().anyMatch(raw -> data.source.equals(String.valueOf(registered.getIdentifier(raw))))) throw new IllegalStateException("Hidden display remains visible");
+                        var server = net.minecraft.client.Minecraft.getInstance().getSingleplayerServer();
+                        if (data.source.equals("minecraft:stick") && server != null) {
+                            var key = net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE,
+                                    net.minecraft.resources.Identifier.parse(data.source));
+                            if (server.getRecipeManager().byKey(key).isEmpty()) throw new IllegalStateException("Actual recipe was modified");
+                        }
                     }
                     if (data.source.isBlank() && !data.hidden) {
-                        Object added = live.stream().filter(raw -> data.id.equals(String.valueOf(registered.getRegistryName(raw)))).findFirst().orElseThrow(() -> new IllegalStateException("Added recipe missing: " + data.id));
+                        Object added = live.stream().filter(raw -> data.id.equals(String.valueOf(registered.getIdentifier(raw)))).findFirst().orElseThrow(() -> new IllegalStateException("Added recipe missing: " + data.id));
                         var codec = registered.getCodec(VjceJeiPlugin.helpers.getCodecHelper(), manager);
                         if (codec != null) {
                             var ops = com.lowdragmc.lowdraglib2.Platform.getFrozenRegistry().createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE);
                             Object encoded = codec.encodeStart(ops, added).getOrThrow();
                             Object decoded = codec.parse(ops, encoded).getOrThrow();
-                            if (!data.id.equals(String.valueOf(registered.getRegistryName(decoded)))) throw new IllegalStateException("Bookmark ID lost");
+                            if (!data.id.equals(String.valueOf(registered.getIdentifier(decoded)))) throw new IllegalStateException("Bookmark ID lost");
                         }
                     }
                 }
@@ -120,18 +126,18 @@ public final class RuntimeAudit {
         }
         for (var document : VjceJeiPlugin.documents()) if (document.target.isBlank() && !document.recipes.isEmpty()) {
             try {
-                var type = VjceJeiPlugin.helpers.getRecipeType(net.minecraft.resources.ResourceLocation.parse(document.id)).orElseThrow();
+                var type = VjceJeiPlugin.helpers.getRecipeType(net.minecraft.resources.Identifier.parse(document.id)).orElseThrow();
                 IRecipeCategory category = manager.getRecipeCategory(type);
                 var recipe = manager.createRecipeLookup(type).get().findFirst().orElseThrow();
                 if (manager.createRecipeLayoutDrawable(category, recipe, focus).isEmpty()) throw new IllegalStateException("New category layout failed");
                 var codec = category.getCodec(VjceJeiPlugin.helpers.getCodecHelper(), manager);
                 var ops = com.lowdragmc.lowdraglib2.Platform.getFrozenRegistry().createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE);
                 var restored = codec.parse(ops, codec.encodeStart(ops, recipe).getOrThrow()).getOrThrow();
-                if (!Objects.equals(category.getRegistryName(recipe), category.getRegistryName(restored))) throw new IllegalStateException("New category bookmark failed");
+                if (!Objects.equals(category.getIdentifier(recipe), category.getIdentifier(restored))) throw new IllegalStateException("New category bookmark failed");
             } catch (Throwable e) { errors.add(document.id + " registration: " + e); }
         }
-        result.put("passed", errors.isEmpty() && result.keySet().stream().filter(key -> key.startsWith("minecraft:")).count() == 12);
-        var path = net.neoforged.fml.loading.FMLPaths.GAMEDIR.get().resolve("vjce-audit.json");
+        result.put("passed", errors.isEmpty() && result.keySet().stream().filter(key -> key.startsWith("minecraft:")).count() == VANILLA.size());
+        var path = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("vjce-audit.json");
         Files.writeString(path, ProjectStore.JSON.toJson(result));
         VisualJeiCategoryEditor.LOG.info("VJCE runtime audit: {}", result);
         return path;

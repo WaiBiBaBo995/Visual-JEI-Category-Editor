@@ -11,8 +11,8 @@ import com.pureneko.vjce.data.ProjectStore;
 import com.pureneko.vjce.integration.*;
 import mezz.jei.api.constants.VanillaTypes;
 import net.minecraft.world.item.*;
-import net.neoforged.neoforge.fluids.FluidStack;
-import mezz.jei.api.neoforge.NeoForgeTypes;
+import mezz.jei.api.fabric.ingredients.fluids.IJeiFluidIngredient;
+import mezz.jei.api.fabric.constants.FabricTypes;
 import java.util.*;
 
 /** Exercises the form controls against the running JEI ingredient registry. */
@@ -29,7 +29,7 @@ public final class FormChoicesScenario implements UIScenario {
                     Forms.object(root, binding, () -> {}, () -> {}, Set.of());
                     return new ModularUI(UI.of(root), c.player());
                 }).awaitModularUI()
-                .step("select a different type without committing data", c -> type(c).setSelected(NeoForgeTypes.FLUID_STACK.getUid(), true))
+                .step("select a different type without committing data", c -> type(c).setSelected(FabricTypes.FLUID_STACK.getUid(), true))
                 .check("type selection opens a filtered picker and preserves the ingredient", c ->
                         root(c).selectId("vjce_ingredient_dialog").findAny().isPresent()
                                 && ProjectStore.JSON.toJson(c.<CategoryDocument.Ingredient>get("original")).equals(c.<String>get("before"))
@@ -38,19 +38,19 @@ public final class FormChoicesScenario implements UIScenario {
                 .step("release cancel", FormChoicesScenario::release)
                 .check("cancelling does not replace or clear the ingredient", c -> c.get("replacement") == null
                         && ProjectStore.JSON.toJson(c.<CategoryDocument.Ingredient>get("original")).equals(c.<String>get("before")))
-                .step("select fluid type again", c -> type(c).setSelected(NeoForgeTypes.FLUID_STACK.getUid(), true))
+                .step("select fluid type again", c -> type(c).setSelected(FabricTypes.FLUID_STACK.getUid(), true))
                 .typeInto("#vjce_ingredient_search_text", "minecraft:water")
                 .waitUntil("water result appears", c -> root(c).selectId("vjce_ingredient_cell").findAny().isPresent())
                 .check("the filtered picker displays only fluid ingredients", c -> root(c).selectId("vjce_ingredient_dialog").findFirst().orElseThrow()
                         .select("*").filter(IngredientSlot.class::isInstance).map(IngredientSlot.class::cast)
-                        .allMatch(slot -> slot.ingredient.getType() == NeoForgeTypes.FLUID_STACK))
+                        .allMatch(slot -> slot.ingredient.getType() == FabricTypes.FLUID_STACK))
                 .screenshot("ingredient-type-fluid-picker")
                 .step("press an ingredient result", c -> press(c, "vjce_ingredient_cell"))
                 .step("release the ingredient result", FormChoicesScenario::release)
                 .check("choosing commits a matching type and payload", c -> {
                     var result = c.<CategoryDocument.Ingredient>get("replacement");
-                    return result != null && result.type.equals(NeoForgeTypes.FLUID_STACK.getUid())
-                            && IngredientAccess.decode(result).getFirst().getIngredient() instanceof FluidStack;
+                    return result != null && result.type.equals(FabricTypes.FLUID_STACK.getUid())
+                            && IngredientAccess.decode(result).getFirst().getIngredient() instanceof IJeiFluidIngredient;
                 })
                 .step("select a fixed binding property", c -> property(c).setSelected("color", true))
                 .check("binding choices preserve canonical save values and free expressions", c ->

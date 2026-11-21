@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "vjce:qa/smelting",
+  "target": "minecraft:smelting",
+  "title": "QA Smelting",
+  "width": 82,
+  "height": 54
+}

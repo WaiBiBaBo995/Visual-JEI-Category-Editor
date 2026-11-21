@@ -14,7 +14,7 @@ public final class ItemPresentationCodec {
     public static JsonElement encode(ItemStack stack) {
         var provider = Platform.getFrozenRegistry();
         var data = new JsonObject();
-        data.add("id", ItemStack.ITEM_NON_AIR_CODEC.encodeStart(provider.createSerializationContext(JsonOps.INSTANCE), stack.getItemHolder()).getOrThrow());
+        data.add("id", net.minecraft.world.item.Item.CODEC.encodeStart(provider.createSerializationContext(JsonOps.INSTANCE), stack.typeHolder()).getOrThrow());
         if (!stack.getComponentsPatch().isEmpty()) {
             // SNBT retains byte/int/long and array types in custom data, as JEI's codec does.
             var patch = DataComponentPatch.CODEC.encodeStart(provider.createSerializationContext(NbtOps.INSTANCE), stack.getComponentsPatch()).getOrThrow();
@@ -33,13 +33,14 @@ public final class ItemPresentationCodec {
         if (encoded == null || !encoded.isJsonObject()) throw new IllegalArgumentException("Invalid item display data");
         var provider = Platform.getFrozenRegistry();
         var data = encoded.getAsJsonObject();
-        var holder = ItemStack.ITEM_NON_AIR_CODEC.parse(provider.createSerializationContext(JsonOps.INSTANCE), data.get("id")).getOrThrow();
+        var holder = net.minecraft.world.item.Item.CODEC.parse(provider.createSerializationContext(JsonOps.INSTANCE), data.get("id")).getOrThrow();
+        if (holder.value() == net.minecraft.world.item.Items.AIR) throw new IllegalArgumentException("Air is not a display ingredient");
         var patch = DataComponentPatch.EMPTY;
         if (data.has("components")) {
             var components = data.get("components");
             if (components.isJsonPrimitive() && components.getAsJsonPrimitive().isString()) {
                 try {
-                    patch = DataComponentPatch.CODEC.parse(provider.createSerializationContext(NbtOps.INSTANCE), TagParser.parseTag(components.getAsString())).getOrThrow();
+                    patch = DataComponentPatch.CODEC.parse(provider.createSerializationContext(NbtOps.INSTANCE), TagParser.parseCompoundFully(components.getAsString())).getOrThrow();
                 } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
                     throw new IllegalArgumentException("Invalid item component SNBT", e);
                 }

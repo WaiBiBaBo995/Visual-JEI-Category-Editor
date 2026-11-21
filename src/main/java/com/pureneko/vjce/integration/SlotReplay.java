@@ -11,7 +11,8 @@ import java.util.*;
 
 /** Replays the actual category against JEI's real builder, retaining renderer/background/callback declarations. */
 public final class SlotReplay implements InvocationHandler {
-    private static final Set<String> INGREDIENT_CALLS = Set.of("addIngredients", "addIngredient", "addIngredientsUnsafe", "addTypedIngredients", "addOptionalTypedIngredients", "addFluidStack");
+    private static final Set<String> INGREDIENT_CALLS = Set.of("add", "addIngredients", "addIngredient", "addItemStack", "addItemStacks",
+            "addIngredientsUnsafe", "addTypedIngredients", "addOptionalTypedIngredients", "addFluidStack");
     private final IRecipeLayoutBuilder actual;
     private final CategoryDocument.Recipe data;
     private final UIElement root;
@@ -27,7 +28,7 @@ public final class SlotReplay implements InvocationHandler {
     @Override public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         if (method.isDefault()) return InvocationHandler.invokeDefault(proxy, method, args);
         String name = method.getName();
-        if (name.equals("addSlot") || name.equals("addSlotToWidget") || name.equals("addInvisibleIngredients")) {
+        if (name.equals("addSlot") || name.equals("addInvisibleIngredients")) {
             int sourceIndex = nextIndex++;
             int index = data.dataSlotIndex(sourceIndex);
             var slot = index < 0 ? null : data.slots.get(index);
@@ -36,8 +37,7 @@ public final class SlotReplay implements InvocationHandler {
             boolean hidden = name.equals("addInvisibleIngredients") || (slot == null ? edited : slot.invisible)
                     || (root != null && !visible(element));
             RecipeIngredientRole role = edited && slot != null ? RecipeIngredientRole.valueOf(slot.role) : (RecipeIngredientRole) args[0];
-            Object destination = hidden ? actual.addInvisibleIngredients(role) : name.equals("addSlotToWidget")
-                    ? actual.addSlotToWidget(role, (mezz.jei.api.gui.widgets.ISlottedWidgetFactory<?>) args[1]) : actual.addSlot(role);
+            Object destination = hidden ? actual.addInvisibleIngredients(role) : actual.addSlot(role);
             if (!hidden) slotKeys.add(key);
             Object[] self = {null}; boolean[] added = {false};
             self[0] = Proxy.newProxyInstance(getClass().getClassLoader(), new Class[]{IRecipeSlotBuilder.class}, (p, call, values) -> {

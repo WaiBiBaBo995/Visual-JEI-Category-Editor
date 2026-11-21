@@ -3,6 +3,7 @@ package com.pureneko.vjce.client;
 import com.lowdragmc.lowdraglib2.configurator.annotation.Configurable;
 import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
+import com.lowdragmc.lowdraglib2.gui.ui.rendering.IGUIContext;
 import com.lowdragmc.lowdraglib2.registry.annotation.LDLRegister;
 import com.lowdragmc.lowdraglib2.syncdata.annotation.Persisted;
 import com.pureneko.vjce.integration.NativePage;
@@ -34,17 +35,17 @@ public class NativePartElement extends UIElement {
     }
     @Override @SuppressWarnings("removal") public HoverTooltips collectHoverTooltips() {
         var page = NativePage.context(this); var slot = page == null ? null : page.previewSlot(this);
-        if (slot != null && useSourceDrawing) return new HoverTooltips(slot.getTooltip(), null, null, null);
+        if (slot != null && useSourceDrawing) return HoverTooltips.create(slot.getTooltip().toArray());
         var nativeText = page == null ? null : page.drawing.tooltips.get(part);
-        if (nativeText != null) return new HoverTooltips(List.of(nativeText), null, null, null);
+        if (nativeText != null) return HoverTooltips.create(nativeText);
         var hover = super.collectHoverTooltips();
         if (!part.startsWith("draw_")) return hover;
         // Older layouts serialized these editor diagnostics as ordinary tooltip lines.
         if (hover != null) {
-            var texts = hover.tooltipTexts().stream().filter(text -> !sourceDiagnostic(text)).toList();
-            if (texts.size() != hover.tooltipTexts().size()) {
-                hover = texts.isEmpty() && hover.tooltipComponent() == null && hover.tooltipStack() == null
-                        ? null : new HoverTooltips(texts, hover.tooltipComponent(), hover.tooltipFont(), hover.tooltipStack());
+            var texts = hover.tooltips().stream().filter(text -> !(text instanceof Component component) || !sourceDiagnostic(component)).toList();
+            if (texts.size() != hover.tooltips().size()) {
+                hover = texts.isEmpty() && hover.tooltipStack() == null
+                        ? null : new HoverTooltips(texts, hover.tooltipFont(), hover.positioner(), hover.background(), hover.tooltipStack());
             }
         }
         if (page == null || page.runtime()) return hover;
@@ -65,7 +66,8 @@ public class NativePartElement extends UIElement {
         return text.getString().equals(sourceLabel);
     }
 
-    @Override public void drawBackgroundAdditional(GUIContext context) {
+    @Override public void drawBackgroundAdditional(IGUIContext renderContext) {
+        if (!(renderContext instanceof GUIContext context)) return;
         var page = NativePage.context(this);
         if (page == null || page.runtime() || !useSourceDrawing) return;
         page.drawElement(this, context);

@@ -1,6 +1,8 @@
 package com.pureneko.vjce.integration;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import com.pureneko.vjce.mixin.TooltipAccess;
+import com.pureneko.vjce.mixin.WidgetTooltipAccess;
 import java.lang.reflect.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,7 +17,12 @@ public final class MekElements {
         catch(ReflectiveOperationException e){throw new IllegalStateException("Mekanism component API: "+name,e);}
     }
     private static int number(Object object,String name){return (int)call(object,name,new Class<?>[0]);}
-    public static net.minecraft.network.chat.Component sourceTooltip(Object object){var tip=call(object,"getTooltip",new Class<?>[0]);return tip instanceof com.pureneko.vjce.mixin.TooltipAccess a?a.vjce$message():null;}
+    public static net.minecraft.network.chat.Component sourceTooltip(Object element) {
+        if (element instanceof WidgetTooltipAccess widget && widget.vjce$tooltip().get() instanceof TooltipAccess tooltip) {
+            return tooltip.vjce$message();
+        }
+        return null;
+    }
     public static Object listenerElement(Object listener) {
         if(!listener.getClass().getName().equals("mekanism.client.recipe_viewer.jei.MekJeiWidget"))return null;
         try{var f=listener.getClass().getDeclaredField("element");f.setAccessible(true);return f.get(listener);}catch(ReflectiveOperationException e){throw new IllegalStateException(e);}
@@ -33,19 +40,19 @@ public final class MekElements {
             discoverChildren(child,drawing,key);
         }
     }
-    public static void render(Object element,GuiGraphics graphics,int x,int y,float tick,String method) {
+    public static void render(Object element,GuiGraphicsExtractor graphics,int x,int y,float tick,String method) {
         boolean active=NativeDrawing.active();
         if(active)NativeDrawing.component(element,graphics,number(element,"getRelativeX"),number(element,"getRelativeY"),number(element,"getRelativeX")+number(element,"getWidth"),number(element,"getRelativeY")+number(element,"getHeight"),element.getClass().getSimpleName());
         var mouse=NativeDrawing.componentMouse(x,y);x=(int)mouse.x;y=(int)mouse.y;
-        try {call(element,method,new Class<?>[]{GuiGraphics.class,int.class,int.class,float.class},graphics,x,y,tick);}
+        try {call(element,method,new Class<?>[]{GuiGraphicsExtractor.class,int.class,int.class,float.class},graphics,x,y,tick);}
         finally {if(active)NativeDrawing.end();}
     }
-    public static void foreground(Object element,GuiGraphics graphics,int x,int y,int z,int total) {
+    public static void foreground(Object element,GuiGraphicsExtractor graphics,int x,int y) {
         boolean active=NativeDrawing.active();
         if(active)NativeDrawing.component(element,graphics,number(element,"getRelativeX"),number(element,"getRelativeY"),number(element,"getRelativeX")+number(element,"getWidth"),number(element,"getRelativeY")+number(element,"getHeight"),element.getClass().getSimpleName());
         var mouse=NativeDrawing.componentMouse(x,y);x=(int)mouse.x;y=(int)mouse.y;
-        try {call(element,"onRenderForeground",new Class<?>[]{GuiGraphics.class,int.class,int.class,int.class,int.class},graphics,x,y,z,total);
-            if(active){call(element,"updateTooltip",new Class<?>[]{int.class,int.class},x,y);var tip=call(element,"getTooltip",new Class<?>[0]);NativeDrawing.tooltip(tip instanceof com.pureneko.vjce.mixin.TooltipAccess access?access.vjce$message():null);}
+        try {call(element,"onRenderForeground",new Class<?>[]{GuiGraphicsExtractor.class,int.class,int.class},graphics,x,y);
+            if(active){call(element,"updateTooltip",new Class<?>[]{int.class,int.class},x,y);NativeDrawing.tooltip(sourceTooltip(element));}
         }
         finally {if(active)NativeDrawing.end();}
     }

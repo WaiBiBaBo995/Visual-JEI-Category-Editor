@@ -26,11 +26,11 @@ public final class SceneRotationScenario implements UIScenario {
                 var label=new com.lowdragmc.lowdraglib2.gui.ui.elements.Label().setText(angle+" deg");place(label,x,y+120,100,12);root.addChild(label);
             }
             c.put("grid",root);return new ModularUI(UI.of(root),c.player());
-        }).awaitModularUI().waitUntil("all scene textures allocated",c->gridScenes(c).stream().allMatch(e->e.getRenderer() instanceof SceneRenderer fbo&&fbo.getFbo()!=null))
-        .check("rotation preserves logical size and texture resolution",c->{var first=(SceneRenderer)gridScenes(c).getFirst().getRenderer();return gridScenes(c).stream().allMatch(e->Math.abs(e.getSizeWidth()-120)<.01&&Math.abs(e.getSizeHeight()-90)<.01&&((SceneRenderer)e.getRenderer()).getResolutionWidth()==first.getResolutionWidth()&&((SceneRenderer)e.getRenderer()).getResolutionHeight()==first.getResolutionHeight()&&e.error.isEmpty());})
+        }).awaitModularUI().waitUntil("all scene textures allocated",c->gridScenes(c).stream().allMatch(e->e.getRenderer() instanceof VjceSceneRenderer fbo&&fbo.getColorTextureView()!=null))
+        .check("rotation preserves logical size and texture resolution",c->{var first=(VjceSceneRenderer)gridScenes(c).getFirst().getRenderer();return gridScenes(c).stream().allMatch(e->Math.abs(e.getSizeWidth()-120)<.01&&Math.abs(e.getSizeHeight()-90)<.01&&((VjceSceneRenderer)e.getRenderer()).getResolutionWidth()==first.getResolutionWidth()&&((VjceSceneRenderer)e.getRenderer()).getResolutionHeight()==first.getResolutionHeight()&&e.error.isEmpty());})
         .step("resizing preserves GUI render target",c->{
             int target=org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER_BINDING);int[] viewport=new int[4];org.lwjgl.opengl.GL11.glGetIntegerv(org.lwjgl.opengl.GL11.GL_VIEWPORT,viewport);boolean depth=org.lwjgl.opengl.GL11.glIsEnabled(org.lwjgl.opengl.GL11.GL_DEPTH_TEST);
-            ((SceneRenderer)gridScenes(c).getFirst().getRenderer()).setFBOSize(302,222);
+            ((VjceSceneRenderer)gridScenes(c).getFirst().getRenderer()).setFBOSize(302,222);
             int[] after=new int[4];org.lwjgl.opengl.GL11.glGetIntegerv(org.lwjgl.opengl.GL11.GL_VIEWPORT,after);
             c.check("scene resize restores target viewport and depth state",target==org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER_BINDING)&&Arrays.equals(viewport,after)&&depth==org.lwjgl.opengl.GL11.glIsEnabled(org.lwjgl.opengl.GL11.GL_DEPTH_TEST));
         })
@@ -39,16 +39,16 @@ public final class SceneRotationScenario implements UIScenario {
             doc.layout=UITemplate.CODEC.encodeStart(NbtOps.INSTANCE,c.<UIElement>get("grid").getModularUI().ui.toTemplate()).getOrThrow().toString();
             var captures=new ArrayList<Map<String,Object>>();double scale=c.mc().getWindow().getGuiScale();
             for(var scene:gridScenes(c)){var p=ElementBounds.of(scene).center();captures.add(Map.of("angle",scene.getStyle().transform2D().rotation(),"center",List.of(p.x*scale,p.y*scale),"radius",82*scale));}
-            c.put("fboInstances",gridScenes(c).stream().map(e->(SceneRenderer)e.getRenderer()).toList());
+            c.put("fboInstances",gridScenes(c).stream().map(e->(VjceSceneRenderer)e.getRenderer()).toList());
             try{java.nio.file.Files.writeString(c.outDir().resolve("scene-rotation-pixels.json"),ProjectStore.JSON.toJson(Map.of("imagePattern","screenshots/vjce_scene_rotation/*_rotation_grid.png","scenes",captures)));}catch(Exception e){throw new IllegalStateException(e);}
         }).screenshot("rotation_grid").closeScreen()
-        .check("closing releases every offscreen target",c->c.<List<SceneRenderer>>get("fboInstances").stream().allMatch(r->r.getFbo()==null||r.getFbo().frameBufferId<0))
+        .check("closing releases every offscreen target",c->c.<List<VjceSceneRenderer>>get("fboInstances").stream().allMatch(r->r.getColorTextureView()==null))
         .openScreen("rotated scenes in actual JEI",c->{
-            var doc=c.<CategoryDocument>get("doc");var recipe=c.<CategoryDocument.Recipe>get("recipe");var type=new mezz.jei.api.recipe.RecipeType<CategoryDocument.Recipe>(net.minecraft.resources.ResourceLocation.parse("vjce:rotation_qa"),CategoryDocument.Recipe.class);
+            var doc=c.<CategoryDocument>get("doc");var recipe=c.<CategoryDocument.Recipe>get("recipe");var type=mezz.jei.api.recipe.types.IRecipeType.create(net.minecraft.resources.Identifier.parse("vjce:rotation_qa"),CategoryDocument.Recipe.class);
             var category=new DisplayCategory<>(doc,type,r->r);var focus=VjceJeiPlugin.helpers.getFocusFactory().createFocusGroup(List.of());var layout=VjceJeiPlugin.runtime.getRecipeManager().createRecipeLayoutDrawable(category,recipe,focus).orElseThrow();((com.pureneko.vjce.mixin.RecipeLayoutAccess)layout).vjce$createExtras();
             return new Screen(net.minecraft.network.chat.Component.literal("Rotated scenes in JEI")){
                 @Override public void tick(){layout.tick();}
-                @Override public void render(GuiGraphics g,int x,int y,float partial){g.fill(0,0,width,height,0xff444444);layout.setPosition(40,60);layout.drawRecipe(g,0,0);g.drawString(font,"Actual JEI: 0 / 30 / 45 / 90 / 135 / 180 degrees",40,30,0xffffffff,false);}
+                @Override public void extractRenderState(GuiGraphicsExtractor g,int x,int y,float partial){g.fill(0,0,width,height,0xff444444);layout.setPosition(40,60);layout.drawRecipe(g,0,0);g.text(font,"Actual JEI: 0 / 30 / 45 / 90 / 135 / 180 degrees",40,30,0xffffffff,false);}
             };
         }).screenshot("rotation_actual_jei").closeScreen();
         s.openModularUI("clipped translucent scene",c->{
@@ -56,18 +56,18 @@ public final class SceneRotationScenario implements UIScenario {
             var panel=new UIElement().layout(l->{l.width(180);l.height(130);}).style(st->st.opacity(.65f));panel.setOverflowVisible(false);
             var scene=fixture();place(scene,100,15,120,90);scene.transform(t->t.rotation(45));panel.addChild(scene);root.addChild(panel);c.put("clipped",scene);
             root.addChild(new com.lowdragmc.lowdraglib2.gui.ui.elements.Label().setText("GUI after nested scene"));return new ModularUI(UI.of(root),c.player());
-        }).awaitModularUI().check("nested clipping and opacity do not break rendering",c->c.<BlockSceneElement>get("clipped").error.isEmpty()&&c.<BlockSceneElement>get("clipped").getRenderer() instanceof SceneRenderer r&&r.getFbo()!=null)
+        }).awaitModularUI().check("nested clipping and opacity do not break rendering",c->c.<BlockSceneElement>get("clipped").error.isEmpty()&&c.<BlockSceneElement>get("clipped").getRenderer() instanceof VjceSceneRenderer r&&r.getColorTextureView()!=null)
         .step("save nested clip pixel metadata",c->{
             var panel=c.<BlockSceneElement>get("clipped").getParent();double scale=c.mc().getWindow().getGuiScale();
             var bounds=List.of(panel.getPositionX()*scale,panel.getPositionY()*scale,(panel.getPositionX()+panel.getSizeWidth())*scale,(panel.getPositionY()+panel.getSizeHeight())*scale);
             try{java.nio.file.Files.writeString(c.outDir().resolve("nested-scene-pixels.json"),ProjectStore.JSON.toJson(Map.of("bounds",bounds,"imagePattern","screenshots/vjce_scene_rotation/*_rotation_clipped_opacity.png")));}catch(Exception e){throw new IllegalStateException(e);}
         }).screenshot("rotation_clipped_opacity")
-        .check("visual layer sampler restored after scene",c->((com.pureneko.vjce.mixin.ShaderSamplerAccess)com.lowdragmc.lowdraglib2.client.shader.LDLibShaders.getVisualLayerShader()).vjce$samplers().get("DiffuseSampler")==null).closeScreen();
+        .closeScreen();
         gesture(s);
     }
     private static BlockSceneElement fixture(){
         var scene=new BlockSceneElement();scene.clock.playing=false;scene.autoFrame=false;scene.cameraRange=2.1f;
-        try{scene.blocks=TagParser.parseTag("{blocks:[{x:0,y:0,z:0,state:{Name:\"minecraft:gold_block\"}},{x:1,y:0,z:0,state:{Name:\"minecraft:redstone_block\"}},{x:0,y:1,z:0,state:{Name:\"minecraft:lapis_block\"}}]}");}catch(Exception e){throw new IllegalStateException(e);}return scene;
+        try{scene.blocks=TagParser.parseCompoundFully("{blocks:[{x:0,y:0,z:0,state:{Name:\"minecraft:gold_block\"}},{x:1,y:0,z:0,state:{Name:\"minecraft:redstone_block\"}},{x:0,y:1,z:0,state:{Name:\"minecraft:lapis_block\"}}]}");}catch(Exception e){throw new IllegalStateException(e);}return scene;
     }
     private static void place(UIElement e,int x,int y,int w,int h){e.layout(l->{l.positionType(dev.vfyjxf.taffy.style.TaffyPosition.ABSOLUTE);l.left(x);l.top(y);l.width(w);l.height(h);});}
     private static List<BlockSceneElement> gridScenes(TestContext c){return c.<UIElement>get("grid").select("*").filter(BlockSceneElement.class::isInstance).map(BlockSceneElement.class::cast).toList();}

@@ -17,7 +17,6 @@ import dev.vfyjxf.taffy.style.TaffyPosition;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.neoforged.fml.loading.FMLPaths;
 import org.joml.Vector2f;
 import java.nio.file.*;
 import java.util.*;
@@ -147,13 +146,13 @@ public final class VideoFullScenario implements UIScenario {
         click(s,"save and apply",c->button(c,"vjce.publish"));
         s.step("published marker",c->mark(c,"published")).waitMs(6000);
         click(s,"export modpack archive",c->button(c,"vjce.export"));
-        s.step("verify actual archive",c->{c.check("modpack export exists",Files.isRegularFile(FMLPaths.GAMEDIR.get().resolve("exports/vjce-modpack.zip")));mark(c,"export");}).waitMs(10000);
+        s.step("verify actual archive",c->{c.check("modpack export exists",Files.isRegularFile(net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("exports/vjce-modpack.zip")));mark(c,"export");}).waitMs(10000);
     }
     private static void snapshot(ScenarioBuilder s){
         load(s,"saved independent scene",c->saved());
         s.step("show snapshot before world change",c->{p(c).layoutView.startSimulation();mark(c,"before");}).waitMs(6000)
          .server("change original world positions only in filming world",sc->{for(int x=8;x<=14;x++)for(int y=80;y<=83;y++)for(int z=8;z<=12;z++)sc.level().setBlockAndUpdate(new BlockPos(x,y,z),net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());})
-         .step("snapshot after source changed",c->{var scene=p(c).layoutView.canvas.getCanvasModularUI().ui.rootElement.select("*").filter(BlockSceneElement.class::isInstance).map(BlockSceneElement.class::cast).findFirst().orElseThrow();scene.ensureScene();c.check("saved snapshot retains 42 blocks",scene.blocks.getList("blocks",10).size()==42&&(Object)scene.getDummyWorld()!=c.mc().level);mark(c,"after");}).waitMs(14000);
+         .step("snapshot after source changed",c->{var scene=p(c).layoutView.canvas.getCanvasModularUI().ui.rootElement.select("*").filter(BlockSceneElement.class::isInstance).map(BlockSceneElement.class::cast).findFirst().orElseThrow();scene.ensureScene();c.check("saved snapshot retains 42 blocks",scene.blocks.getListOrEmpty("blocks").size()==42&&(Object)scene.getDummyWorld()!=c.mc().level);mark(c,"after");}).waitMs(14000);
     }
     private static void create(ScenarioBuilder s){
         load(s,"Create mechanical display",c->{var doc=new CategoryDocument();doc.width=330;doc.height=190;doc.recipes.add(new CategoryDocument.Recipe());var p=new VjceProject(doc);return p;});

@@ -30,7 +30,7 @@ public final class WorldCaptureScenario implements UIScenario {
             level.setBlockAndUpdate(ORIGIN.offset(0,0,1),Blocks.OAK_STAIRS.defaultBlockState().setValue(StairBlock.FACING,net.minecraft.core.Direction.EAST));
             var signPos=ORIGIN.offset(1,0,0);level.setBlockAndUpdate(signPos,Blocks.OAK_SIGN.defaultBlockState());
             var sign=(SignBlockEntity)level.getBlockEntity(signPos);sign.setText(sign.getFrontText().setMessage(0,Component.literal("VJCE world QA")),true);sign.setChanged();level.sendBlockUpdated(signPos,sign.getBlockState(),sign.getBlockState(),3);
-            var stand=EntityType.ARMOR_STAND.create(level);stand.moveTo(9.5,81,9.5,30,5);stand.setNoGravity(true);stand.setInvulnerable(true);stand.setCustomName(Component.literal("VJCE capture QA"));stand.setHeadPose(new net.minecraft.core.Rotations(15,25,0));stand.setItemSlot(EquipmentSlot.HEAD,new ItemStack(Items.DIAMOND_HELMET));level.addFreshEntity(stand);sc.put("worldZombie",stand.getUUID());
+            var stand=EntityType.ARMOR_STAND.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);stand.snapTo(9.5,81,9.5,30,5);stand.setNoGravity(true);stand.setInvulnerable(true);stand.setCustomName(Component.literal("VJCE capture QA"));stand.setHeadPose(new net.minecraft.core.Rotations(15,25,0));stand.setItemSlot(EquipmentSlot.HEAD,new ItemStack(Items.DIAMOND_HELMET));level.addFreshEntity(stand);sc.put("worldZombie",stand.getUUID());
             for(var pos:BlockPos.betweenClosed(LARGE,LARGE.offset(16,16,16)))level.setBlockAndUpdate(pos,Blocks.STONE.defaultBlockState());
         }).timeoutMs(15000).waitUntil("source data synchronized",c->c.mc().level.hasChunkAt(LARGE.offset(16,0,16))&&c.mc().level.getBlockState(LARGE.offset(16,16,16)).is(Blocks.STONE)&&sourceEntity(c)!=null&&c.mc().level.getBlockEntity(ORIGIN.offset(1,0,0))!=null&&c.mc().level.getBlockEntity(ORIGIN.offset(1,0,0)).saveWithoutMetadata(c.mc().level.registryAccess()).toString().contains("VJCE world QA"))
         .openModularUI("world import editor",c->{var p=new VjceProject(VjceSmokeScenario.example());p.document.width=360;p.document.height=220;var w=new EditorWindow(VjceEditor::new);w.getCurrentEditor().loadProject(p,null);var scene=BlockSceneElement.entityScene();scene.setId("world_scene");scene.clock.playing=false;scene.layout(l->{l.positionType(dev.vfyjxf.taffy.style.TaffyPosition.ABSOLUTE);l.left(15);l.top(20);l.width(200);l.height(170);});p.layoutView.getCurrentUI().rootElement.addChild(scene);p.layoutView.hierarchy.loadUI(p.layoutView.getCurrentUI());c.put("worldProject",p);c.put("worldScene",scene);return new ModularUI(UI.of(w),c.player());}).awaitModularUI()
@@ -49,16 +49,16 @@ public final class WorldCaptureScenario implements UIScenario {
         .check("Shift clicks set both real world corners",c->dialog(c).selection().min().equals(ORIGIN)&&dialog(c).selection().max().equals(ORIGIN.offset(2,1,2)))
         .screenshot("world_two_corners");
         click(s,"import blocks only",c->root(c).selectId("vjce_world_import").findFirst().orElseThrow());
-        s.check("world import changes working copy only",c->working(c).getList("blocks",Tag.TAG_COMPOUND).size()==9&&scene(c).blocks.getList("blocks",Tag.TAG_COMPOUND).isEmpty())
-        .check("unchecked entity import clears previous and manually added entities",c->working(c).getList("entities",Tag.TAG_COMPOUND).isEmpty());
+        s.check("world import changes working copy only",c->working(c).getListOrEmpty("blocks").size()==9&&scene(c).blocks.getListOrEmpty("blocks").isEmpty())
+        .check("unchecked entity import clears previous and manually added entities",c->working(c).getListOrEmpty("entities").isEmpty());
         click(s,"cancel scene settings",c->parent(c).buttonContainer.getChildren().getLast());
-        s.check("cancel discards world import",c->scene(c).blocks.getList("blocks",Tag.TAG_COMPOUND).isEmpty())
+        s.check("cancel discards world import",c->scene(c).blocks.getListOrEmpty("blocks").isEmpty())
         .step("reopen scene settings",c->SceneEditor.open(project(c).layoutView,scene(c)));
         click(s,"world selection with entities",c->root(c).selectId("vjce_world_open").findFirst().orElseThrow());
         coordinates(s,ORIGIN,ORIGIN.offset(2,1,2));
         click(s,"include source entities",c->dialog(c).includeEntities);
         click(s,"import full selection",c->root(c).selectId("vjce_world_import").findFirst().orElseThrow());
-        s.check("optional entity capture replaces entity list",c->working(c).getList("entities",Tag.TAG_COMPOUND).size()==1&&working(c).getList("entities",Tag.TAG_COMPOUND).getCompound(0).getString("id").equals("minecraft:armor_stand"))
+        s.check("optional entity capture replaces entity list",c->working(c).getListOrEmpty("entities").size()==1&&working(c).getListOrEmpty("entities").getCompoundOrEmpty(0).getStringOr("id", "").equals("minecraft:armor_stand"))
         .check("block entity NBT captured",c->working(c).toString().contains("VJCE world QA"));
         click(s,"apply imported scene",c->parent(c).buttonContainer.getChildren().getFirst());
         s.check("applied structure retains states and equipment",c->{var scene=scene(c);scene.ensureScene();return scene.error.isEmpty()&&scene.getDummyWorld().getBlockState(new BlockPos(0,0,1)).getValue(StairBlock.FACING)==net.minecraft.core.Direction.EAST&&((LivingEntity)scene.sceneEntities().getFirst()).getItemBySlot(EquipmentSlot.HEAD).is(Items.DIAMOND_HELMET);})
@@ -73,11 +73,11 @@ public final class WorldCaptureScenario implements UIScenario {
         .waitUntil("source changed",c->c.mc().level.getBlockState(ORIGIN).is(Blocks.LAPIS_BLOCK))
         .openScreen("world snapshot in actual JEI",c->{
             var p=project(c);var probe=RecipeUI.savedTemplate(p.document).createUI().rootElement.selectId("world_scene",BlockSceneElement.class).findFirst().orElseThrow();probe.ensureScene();c.check("snapshot independent of later world changes",probe.getDummyWorld().getBlockState(BlockPos.ZERO).is(Blocks.GOLD_BLOCK));probe.release();
-            var type=new mezz.jei.api.recipe.RecipeType<com.pureneko.vjce.data.CategoryDocument.Recipe>(net.minecraft.resources.ResourceLocation.parse("vjce:world_qa"),com.pureneko.vjce.data.CategoryDocument.Recipe.class);
+            var type=mezz.jei.api.recipe.types.IRecipeType.create(net.minecraft.resources.Identifier.parse("vjce:world_qa"),com.pureneko.vjce.data.CategoryDocument.Recipe.class);
             var category=new DisplayCategory<>(p.document,type,r->r);var focus=VjceJeiPlugin.helpers.getFocusFactory().createFocusGroup(List.of());var layout=VjceJeiPlugin.runtime.getRecipeManager().createRecipeLayoutDrawable(category,p.selected,focus).orElseThrow();((com.pureneko.vjce.mixin.RecipeLayoutAccess)layout).vjce$createExtras();
             return new net.minecraft.client.gui.screens.Screen(Component.literal("World snapshot in JEI")){
                 @Override public void tick(){layout.tick();}
-                @Override public void render(net.minecraft.client.gui.GuiGraphics g,int x,int y,float partial){g.fill(0,0,width,height,0xff444444);layout.setPosition(60,80);layout.drawRecipe(g,0,0);g.drawString(font,"Actual JEI: independent world snapshot, sign data and entity equipment",30,35,0xffffffff,false);}
+                @Override public void extractRenderState(net.minecraft.client.gui.GuiGraphicsExtractor g,int x,int y,float partial){g.fill(0,0,width,height,0xff444444);layout.setPosition(60,80);layout.drawRecipe(g,0,0);g.text(font,"Actual JEI: independent world snapshot, sign data and entity equipment",30,35,0xffffffff,false);}
             };
         }).screenshot("world_actual_jei").closeScreen()
         .openModularUI("4096 block scene",c->{var scene=new BlockSceneElement();scene.blocks=c.get("largeCapture");scene.clock.playing=false;scene.layout(l->{l.width(220);l.height(220);});c.put("largeScene",scene);return new ModularUI(UI.of(new UIElement().layout(l->{l.width(240);l.height(240);}).addChild(scene)),c.player());}).awaitModularUI()
@@ -89,26 +89,26 @@ public final class WorldCaptureScenario implements UIScenario {
         var level=c.mc().level;var previous=scene(c).blocks.copy();
         for(boolean entities:List.of(false,true)){
             var replacement=WorldSceneCapture.capture(level,WorldSceneCapture.Selection.of(ORIGIN,ORIGIN),entities,previous);
-            c.check("new selection with no entities clears old entities, checked="+entities,replacement.getList("entities",Tag.TAG_COMPOUND).isEmpty()&&previous.equals(scene(c).blocks));
+            c.check("new selection with no entities clears old entities, checked="+entities,replacement.getListOrEmpty("entities").isEmpty()&&previous.equals(scene(c).blocks));
         }
         var reverse=WorldSceneCapture.Selection.of(ORIGIN.offset(2,1,2),ORIGIN);var capture=WorldSceneCapture.capture(level,reverse,true,previous);
-        c.check("reverse corners normalize to minimum origin",capture.getList("blocks",Tag.TAG_COMPOUND).getCompound(0).getInt("x")==0);
+        c.check("reverse corners normalize to minimum origin",capture.getListOrEmpty("blocks").getCompoundOrEmpty(0).getIntOr("x", 0)==0);
         var large=WorldSceneCapture.capture(level,WorldSceneCapture.Selection.of(LARGE,LARGE.offset(15,15,15)),false,new CompoundTag());c.put("largeCapture",large);
-        c.check("4096 block boundary accepted",large.getList("blocks",Tag.TAG_COMPOUND).size()==4096);
+        c.check("4096 block boundary accepted",large.getListOrEmpty("blocks").size()==4096);
         for(var region:List.of(WorldSceneCapture.Selection.of(LARGE,LARGE.offset(16,16,16)),WorldSceneCapture.Selection.of(LARGE,LARGE.offset(32,0,0)),WorldSceneCapture.Selection.of(new BlockPos(20000000,80,0),new BlockPos(20000000,80,0)))){
             boolean rejected=false;try{WorldSceneCapture.capture(level,region,false,previous);}catch(IllegalArgumentException expected){rejected=true;}c.check("invalid selection rejected atomically: "+region,rejected&&previous.equals(scene(c).blocks));
         }
         var temporary=new ArrayList<Entity>();
         try{
-            for(int i=0;i<33;i++){var e=EntityType.ARMOR_STAND.create(level);e.moveTo(15.5,80,15.5,0,0);level.addEntity(e);temporary.add(e);}
+            for(int i=0;i<33;i++){var e=EntityType.ARMOR_STAND.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);e.snapTo(15.5,80,15.5,0,0);level.addEntity(e);temporary.add(e);}
             boolean rejected=false;try{WorldSceneCapture.capture(level,WorldSceneCapture.Selection.of(new BlockPos(15,80,15),new BlockPos(15,81,15)),true,previous);}catch(IllegalArgumentException expected){rejected=true;}
             c.check("33 entities rejected without truncation",rejected&&previous.equals(scene(c).blocks));
         }finally{temporary.forEach(Entity::discard);}
-        var boat=EntityType.BOAT.create(level);boat.moveTo(11.01,81,9,0,0);level.addEntity(boat);
-        try{var filtered=WorldSceneCapture.capture(level,reverse,true,previous);c.check("entity reference point governs selection",filtered.getList("entities",Tag.TAG_COMPOUND).size()==1);}finally{boat.discard();}
-        var vehicle=EntityType.BOAT.create(level);var rider=EntityType.ZOMBIE.create(level);vehicle.moveTo(8.5,81,8.5,0,0);rider.startRiding(vehicle,true);
-        var snapshot=WorldSceneCapture.entity(vehicle,ORIGIN);c.check("riding capture strips hierarchy without mutating source",!snapshot.getCompound("data").contains("Passengers")&&rider.getVehicle()==vehicle&&vehicle.getPassengers().size()==1);
-        var armor=EntityType.ARMOR_STAND.create(level);armor.moveTo(8.5,81,8.5,0,0);var armorData=WorldSceneCapture.entity(armor,ORIGIN).getCompound("data");c.check("armor stand body pose is preserved",armorData.contains("Pose"));
+        var boat=EntityType.OAK_BOAT.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);boat.snapTo(11.01,81,9,0,0);level.addEntity(boat);
+        try{var filtered=WorldSceneCapture.capture(level,reverse,true,previous);c.check("entity reference point governs selection",filtered.getListOrEmpty("entities").size()==1);}finally{boat.discard();}
+        var vehicle=EntityType.OAK_BOAT.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);var rider=EntityType.ZOMBIE.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);vehicle.snapTo(8.5,81,8.5,0,0);rider.startRiding(vehicle,true,true);
+        var snapshot=WorldSceneCapture.entity(vehicle,ORIGIN);c.check("riding capture strips hierarchy without mutating source",!snapshot.getCompoundOrEmpty("data").contains("Passengers")&&rider.getVehicle()==vehicle&&vehicle.getPassengers().size()==1);
+        var armor=EntityType.ARMOR_STAND.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);armor.snapTo(8.5,81,8.5,0,0);var armorData=WorldSceneCapture.entity(armor,ORIGIN).getCompoundOrEmpty("data");c.check("armor stand body pose is preserved",armorData.contains("Pose"));
     }
     private static Entity sourceEntity(TestContext c){return c.mc().level.entitiesForRendering().iterator().hasNext()?java.util.stream.StreamSupport.stream(c.mc().level.entitiesForRendering().spliterator(),false).filter(e->e.getUUID().equals(c.get("worldZombie"))).findFirst().orElse(null):null;}
     private static VjceProject project(TestContext c){return c.get("worldProject");}
@@ -141,7 +141,7 @@ public final class WorldCaptureScenario implements UIScenario {
         .typeInto("#vjce_world_to_y","319")
         .step("aim world height boundary",c->{var p=ElementBounds.of(field(c,"to_y")).center();c.put("wheelPoint",p);c.input().moveTo(p.x,p.y);})
         .step("wheel clamps world height",c->{var p=c.<Vector2f>get("wheelPoint");c.input().scroll(p.x,p.y,1);})
-        .check("coordinate stays inside build height",c->Integer.parseInt(field(c,"to_y").getValue())==c.mc().level.getMaxBuildHeight()-1)
+        .check("coordinate stays inside build height",c->Integer.parseInt(field(c,"to_y").getValue())==c.mc().level.getMaxY())
         .step("restore original corner values",c->{var d=dialog(c);var selection=c.<WorldSceneCapture.Selection>get("originalSelection");for(String side:List.of("from","to")){var p=side.equals("from")?selection.min():selection.max();int[] v={p.getX(),p.getY(),p.getZ()};for(int a=0;a<3;a++)field(c,side+"_"+"xyz".charAt(a)).setText(Integer.toString(v[a]),true);}});
     }
     private static com.lowdragmc.lowdraglib2.gui.ui.elements.TextField field(TestContext c,String name){return (com.lowdragmc.lowdraglib2.gui.ui.elements.TextField)root(c).selectId("vjce_world_"+name).findFirst().orElseThrow();}

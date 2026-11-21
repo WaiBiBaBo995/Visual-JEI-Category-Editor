@@ -7,9 +7,22 @@ import mezz.jei.api.ingredients.IIngredientType;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
+import mezz.jei.library.ingredients.IngredientManager;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.fluids.FluidStack;
+import net.minecraft.world.item.ItemStackTemplate;
+import net.minecraft.world.item.crafting.display.SlotDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplayContext;
+import net.minecraft.world.level.ItemLike;
+import net.minecraft.world.level.material.Fluid;
+import mezz.jei.api.fabric.constants.FabricTypes;
+import mezz.jei.api.fabric.ingredients.fluids.IJeiFluidIngredient;
+import mezz.jei.api.fabric.ingredients.fluids.JeiFluidIngredient;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidConstants;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 import java.lang.reflect.*;
 import java.util.*;
 
@@ -20,8 +33,16 @@ public final class LayoutCapture {
     public final List<int[]> focusLinks = new ArrayList<>();
     private final List<SlotBuilder> builders = new ArrayList<>();
     private final int width, height;
+    private final ContextMap context;
     public LayoutCapture() { this(176, 90); }
-    public LayoutCapture(int width, int height) { this.width = width; this.height = height; }
+    public LayoutCapture(int width, int height) {
+        this.width = width;
+        this.height = height;
+        var level = Minecraft.getInstance().level;
+        context = level == null ? new ContextMap.Builder()
+                .withParameter(SlotDisplayContext.REGISTRIES, com.lowdragmc.lowdraglib2.Platform.getFrozenRegistry())
+                .create(SlotDisplayContext.CONTEXT) : SlotDisplayContext.fromLevel(level);
+    }
     public final IRecipeLayoutBuilder builder = (IRecipeLayoutBuilder) Proxy.newProxyInstance(getClass().getClassLoader(), new Class[]{IRecipeLayoutBuilder.class}, this::layout);
 
     private Object layout(Object proxy, Method method, Object[] args) throws Throwable {
@@ -60,6 +81,7 @@ public final class LayoutCapture {
         @Override public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             if (method.isDefault()) return InvocationHandler.invokeDefault(proxy, method, args);
             String name = method.getName();
+            if (name.equals("getContextMap")) return context;
             if (name.equals("getWidth")) return width;
             if (name.equals("getHeight")) return height;
             if (name.equals("setSlotName")) this.name = (String) args[0];
@@ -73,15 +95,27 @@ public final class LayoutCapture {
             }
             else if (name.startsWith("add")) {
                 if (args != null && args.length >= 2 && args[0] instanceof IIngredientType<?> type) add(type, args[1]);
-                else if (args != null && args.length > 0 && name.equals("addFluidStack")) addAny(new FluidStack((net.minecraft.world.level.material.Fluid) args[0], ((Number) args[1]).intValue()));
-                else if (args != null && args.length > 0 && Set.of("addItemStack", "addItemStacks", "addTypedIngredient", "addTypedIngredients", "addOptionalTypedIngredients", "addIngredients", "addIngredientsUnsafe").contains(name)) addAny(args[0]);
+                else if (args != null && args.length > 0 && args[0] instanceof Fluid fluid) {
+                    long amount = args.length < 2 ? FluidConstants.BUCKET : ((Number) args[1]).longValue();
+                    var patch = args.length > 2 && args[2] instanceof DataComponentPatch components ? components : DataComponentPatch.EMPTY;
+                    addAny(new JeiFluidIngredient(FluidVariant.of(fluid, patch), amount));
+                }
+                else if (args != null && args.length > 0 && Set.of("add", "addItemStack", "addItemStacks", "addTypedIngredient", "addTypedIngredients", "addOptionalTypedIngredients", "addIngredients", "addIngredientsUnsafe").contains(name)) addAny(args[0]);
             }
             return defaultValue(proxy, method, args);
         }
         void addAny(Object value) {
             if (value instanceof Collection<?> c) { c.forEach(this::addAny); return; }
             if (value instanceof Optional<?> o) { if (o.isPresent()) addAny(o.get()); else values.add(null); return; }
-            if (value instanceof Ingredient ingredient) { Arrays.stream(ingredient.getItems()).forEach(this::addAny); return; }
+            if (value instanceof Ingredient ingredient) { addAny(ingredient.display()); return; }
+            if (value instanceof SlotDisplay display) {
+                if (IngredientAccess.manager instanceof IngredientManager manager) {
+                    manager.resolveSlotDisplay(context, role, display).forEach(ingredient -> values.add(ingredient.typedIngredient()));
+                } else display.resolveForStacks(context).forEach(this::addAny);
+                return;
+            }
+            if (value instanceof ItemStackTemplate template) { addAny(template.create()); return; }
+            if (value instanceof ItemLike item) { addAny(new ItemStack(item)); return; }
             if (value instanceof ITypedIngredient<?> typed) { values.add(typed); return; }
             if (value == null) values.add(null);
             else values.add(IngredientAccess.manager.createTypedIngredient(value, false).orElse(null));
@@ -89,6 +123,12 @@ public final class LayoutCapture {
         @SuppressWarnings({"unchecked", "rawtypes"}) void add(IIngredientType type, Object value) {
             if (value instanceof Collection<?> c) { c.forEach(v -> add(type, v)); return; }
             if (value instanceof Optional<?> o) { if (o.isPresent()) add(type, o.get()); else values.add(null); return; }
+            if (value instanceof Ingredient ingredient) { add(type, ingredient.display()); return; }
+            if (value instanceof SlotDisplay display && IngredientAccess.manager instanceof IngredientManager manager) {
+                manager.resolveSlotDisplay(type, context, role, display).forEach(ingredient ->
+                        values.add(((mezz.jei.library.ingredients.SlotIngredient<?>) ingredient).typedIngredient()));
+                return;
+            }
             if (value == null) values.add(null);
             else values.add((ITypedIngredient<?>) IngredientAccess.manager.createTypedIngredient(type, value, false).orElse(null));
         }

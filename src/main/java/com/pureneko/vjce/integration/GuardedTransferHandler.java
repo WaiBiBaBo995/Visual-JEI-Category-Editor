@@ -1,6 +1,6 @@
 package com.pureneko.vjce.integration;
 
-import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.recipe.types.IRecipeType;
 import mezz.jei.api.recipe.transfer.*;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import net.minecraft.network.chat.Component;
@@ -12,7 +12,7 @@ public record GuardedTransferHandler<C extends AbstractContainerMenu, R>(IRecipe
         CapturedCategory<R> category) implements IRecipeTransferHandler<C, R> {
     @Override public Class<? extends C> getContainerClass() { return original.getContainerClass(); }
     @Override public Optional<MenuType<C>> getMenuType() { return original.getMenuType(); }
-    @Override public RecipeType<R> getRecipeType() { return original.getRecipeType(); }
+    @Override public IRecipeType<R> getRecipeType() { return original.getRecipeType(); }
     private IRecipeTransferError blocked() {
         return new mezz.jei.library.transfer.RecipeTransferErrorTooltip(Component.translatable("vjce.transfer.display_only"));
     }

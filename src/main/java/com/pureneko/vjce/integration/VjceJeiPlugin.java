@@ -4,15 +4,14 @@ import com.pureneko.vjce.VisualJeiCategoryEditor;
 import com.pureneko.vjce.data.CategoryDocument;
 import mezz.jei.api.*;
 import mezz.jei.api.helpers.IJeiHelpers;
-import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.recipe.types.IRecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.registration.*;
 import mezz.jei.api.runtime.IJeiRuntime;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import java.util.*;
 
-@JeiPlugin
 public final class VjceJeiPlugin implements IModPlugin {
     public static IJeiHelpers helpers;
     public static IJeiRuntime runtime;
@@ -20,13 +19,13 @@ public final class VjceJeiPlugin implements IModPlugin {
     public static final Map<String, CapturedCategory<?>> adapters = new LinkedHashMap<>();
     private static List<CategoryDocument> documents;
     private final Map<CategoryDocument, DisplayCategory<CategoryDocument.Recipe>> custom = new LinkedHashMap<>();
-    @Override public ResourceLocation getPluginUid() { return ResourceLocation.fromNamespaceAndPath("vjce", "plugin"); }
+    @Override public Identifier getPluginUid() { return Identifier.fromNamespaceAndPath("vjce", "plugin"); }
     public static List<CategoryDocument> documents() {
         if (documents == null) {
             var loaded = new ArrayList<CategoryDocument>();
             for (var document : VisualJeiCategoryEditor.STORE.loadAll()) {
                 try {
-                    if (!document.layout.isBlank()) com.lowdragmc.lowdraglib2.gui.ui.UITemplate.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, net.minecraft.nbt.TagParser.parseTag(document.layout)).getOrThrow();
+                    if (!document.layout.isBlank()) com.lowdragmc.lowdraglib2.gui.ui.UITemplate.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, net.minecraft.nbt.TagParser.parseCompoundFully(document.layout)).getOrThrow();
                     loaded.add(document);
                 } catch (Exception e) { VisualJeiCategoryEditor.STORE.errors.add(document.id + " layout: " + e.getMessage()); }
             }
@@ -51,7 +50,7 @@ public final class VjceJeiPlugin implements IModPlugin {
         CategoryFixtures.categories(registration);
         custom.clear();
         for (var document : documents()) if (document.target.isEmpty()) {
-            var type = new RecipeType<>(ResourceLocation.parse(document.id), CategoryDocument.Recipe.class);
+            var type = IRecipeType.create(Identifier.parse(document.id), CategoryDocument.Recipe.class);
             var category = new DisplayCategory<>(document, type, recipe -> recipe);
             custom.put(document, category);
             registration.addRecipeCategories(category);
@@ -74,7 +73,7 @@ public final class VjceJeiPlugin implements IModPlugin {
             for (var recipe : adapter.document.recipes) if (recipe.source.isEmpty() && !recipe.hidden) try {
                 Object synthetic = VanillaDisplays.create(adapter.getRecipeType().getUid(), recipe);
                 ((CapturedCategory) adapter).addDisplay(synthetic, recipe);
-                registration.addRecipes((RecipeType) adapter.getRecipeType(), List.of(synthetic));
+                registration.addRecipes((IRecipeType) adapter.getRecipeType(), List.of(synthetic));
             } catch (Exception e) { VisualJeiCategoryEditor.LOG.error("VJCE skipped added display {}: {}", recipe.id, e.getMessage()); }
         }
         CompatibilityAudit.register(registration);
@@ -83,7 +82,7 @@ public final class VjceJeiPlugin implements IModPlugin {
         custom.forEach((document, category) -> registerCatalysts(registration, document, category.getRecipeType()));
         adapters.values().forEach(category -> registerCatalysts(registration, category.document, category.getRecipeType()));
     }
-    private static void registerCatalysts(IRecipeCatalystRegistration registration, CategoryDocument document, RecipeType<?> type) {
+    private static void registerCatalysts(IRecipeCatalystRegistration registration, CategoryDocument document, IRecipeType<?> type) {
         var added = new ArrayList<ItemStack>();
         for (var encoded : document.catalysts) {
             try {

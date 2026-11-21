@@ -89,8 +89,10 @@ final class SceneBlockImports {
         var state = stack.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY).apply(block.defaultBlockState());
         var asset = new CompoundTag();
         asset.putString("assetId", UUID.randomUUID().toString());
+        asset.putInt("dataVersion", SceneNbt.currentVersion());
         asset.put("state", BlockState.CODEC.encodeStart(NbtOps.INSTANCE, state).getOrThrow());
-        var custom = stack.getOrDefault(DataComponents.BLOCK_ENTITY_DATA, CustomData.EMPTY).copyTag();
+        var blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+        var custom = blockEntityData == null ? new CompoundTag() : blockEntityData.copyTagWithoutId();
         if (state.hasBlockEntity()) {
             // Modded entities may require a level even when only loading or saving item data.
             var world = new DummyWorld(registries);
@@ -103,7 +105,7 @@ final class SceneBlockImports {
                 } else {
                     var merged = tile.saveCustomOnly(registries);
                     merged.merge(custom);
-                    tile.loadCustomOnly(merged, registries);
+                    tile.loadCustomOnly(net.minecraft.world.level.storage.TagValueInput.create(net.minecraft.util.ProblemReporter.DISCARDING, registries, merged));
                     // Component readers can clear fields absent from the stack. Supply decoded NBT
                     // as defaults so an explicit stack patch overrides it without erasing other fields.
                     var defaults = DataComponentMap.composite(stack.getPrototype(), tile.collectComponents());

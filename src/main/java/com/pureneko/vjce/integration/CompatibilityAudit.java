@@ -8,14 +8,14 @@ import mezz.jei.api.constants.*;
 import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.widgets.IRecipeExtrasBuilder;
 import mezz.jei.api.recipe.*;
-import mezz.jei.api.recipe.RecipeType;
+import mezz.jei.api.recipe.types.IRecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.registration.IRecipeRegistration;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.*;
@@ -25,17 +25,18 @@ import java.util.function.BiConsumer;
 
 /** Development-only regression fixtures for the reported login disconnection. */
 public final class CompatibilityAudit {
-    private static final ResourceLocation RECIPE_ID = ResourceLocation.parse("vjce:qa/damageable_stackable");
+    private static final Identifier RECIPE_ID = Identifier.parse("vjce:qa/damageable_stackable");
     private CompatibilityAudit() {}
 
     public static void register(IRecipeRegistration registration) {
         if (!enabled()) return;
         var ingredients = NonNullList.<Ingredient>create(); ingredients.add(Ingredient.of(Items.STONE));
-        RecipeHolder<CraftingRecipe> recipe = new RecipeHolder<>(RECIPE_ID, new ShapelessRecipe("", CraftingBookCategory.MISC, incompatibleStack(), ingredients));
+        RecipeHolder<CraftingRecipe> recipe = new RecipeHolder<>(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE, RECIPE_ID),
+                new ShapelessRecipe(new Recipe.CommonInfo(false), new CraftingRecipe.CraftingBookInfo(CraftingBookCategory.MISC, ""), ItemStackTemplate.fromNonEmptyStack(incompatibleStack()), ingredients));
         registration.addRecipes(RecipeTypes.CRAFTING, List.of(recipe));
     }
 
-    public static boolean enabled() { return !net.neoforged.fml.loading.FMLEnvironment.production && Boolean.getBoolean("vjce.compatTest"); }
+    public static boolean enabled() { return Platform.isDevEnv() && Boolean.getBoolean("vjce.compatTest"); }
 
     private static ItemStack incompatibleStack() {
         var stack = new ItemStack(Items.DIAMOND_PICKAXE, 7);
@@ -73,7 +74,7 @@ public final class CompatibilityAudit {
         check.accept("previous JEI component format remains readable", ItemStack.isSameItemSameComponents(valid, (ItemStack) IngredientAccess.decode(previousFormat).getFirst().getIngredient()));
 
         var runtime = VjceJeiPlugin.runtime;
-        var added = runtime.getRecipeManager().createRecipeLookup(RecipeTypes.CRAFTING).get().filter(recipe -> recipe.id().equals(RECIPE_ID)).findFirst().orElseThrow();
+        var added = runtime.getRecipeManager().createRecipeLookup(RecipeTypes.CRAFTING).get().filter(recipe -> recipe.id().identifier().equals(RECIPE_ID)).findFirst().orElseThrow();
         check.accept("incompatible recipe survives real JEI startup indexing", runtime.getRecipeManager().getRecipeCategory(RecipeTypes.CRAFTING) instanceof CapturedCategory<?>);
         @SuppressWarnings("unchecked") var category = (IRecipeCategory<RecipeHolder<CraftingRecipe>>) VjceJeiPlugin.originals.get("minecraft:crafting");
         var captured = CapturedCategory.capture(category, added);
@@ -97,13 +98,13 @@ public final class CompatibilityAudit {
 
     private static final class NoProxyCategory implements IRecipeCategory<Object> {
         int calls;
-        final RecipeType<Object> type = new RecipeType<>(ResourceLocation.parse("vjce:qa/uncapturable"), Object.class);
-        @Override public RecipeType<Object> getRecipeType() { return type; }
+        final IRecipeType<Object> type = IRecipeType.create(Identifier.parse("vjce:qa/uncapturable"), Object.class);
+        @Override public IRecipeType<Object> getRecipeType() { return type; }
         @Override public Component getTitle() { return Component.literal("Regression fallback"); }
         @Override public int getWidth() { return 60; }
         @Override public int getHeight() { return 24; }
         @Override public mezz.jei.api.gui.drawable.IDrawable getIcon() { return null; }
-        @Override public ResourceLocation getRegistryName(Object recipe) { return ResourceLocation.parse("vjce:qa/source"); }
+        @Override public Identifier getIdentifier(Object recipe) { return Identifier.parse("vjce:qa/source"); }
         @Override public void setRecipe(IRecipeLayoutBuilder builder, Object recipe, IFocusGroup focus) {
             if (Proxy.isProxyClass(builder.getClass())) throw new IllegalArgumentException("Expected regression fixture: source cannot be captured");
             calls++; builder.addOutputSlot(1, 1).addItemStack(new ItemStack(Items.STONE));

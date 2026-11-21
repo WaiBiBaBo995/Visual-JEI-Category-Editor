@@ -17,11 +17,9 @@ import dev.vfyjxf.taffy.style.TaffyPosition;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.material.Fluids;
-import net.neoforged.fml.loading.FMLPaths;
-import net.neoforged.neoforge.fluids.FluidStack;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
 
@@ -54,33 +52,37 @@ public final class VideoDemoScenario implements UIScenario {
                     sc.player().getAbilities().flying = true;
                     sc.player().onUpdateAbilities();
                     sc.player().connection.teleport(11.5, 84, 3, 0, 30);
-                    level.setDayTime(6000);
-                    level.setWeatherParameters(60000, 0, false, false);
+                    level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack(), "time set 6000");
+                    level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack(), "weather clear");
                     for (int x = 0; x < 7; x++) for (int z = 0; z < 5; z++)
                         level.setBlockAndUpdate(ORIGIN.offset(x, 0, z), Blocks.POLISHED_DEEPSLATE.defaultBlockState());
                     for (int y = 1; y <= 3; y++) level.setBlockAndUpdate(ORIGIN.offset(6, y, 4), Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
                     for (var entry : Map.of("enrichment_chamber", new BlockPos(2, 1, 2),
                             "energized_smelter", new BlockPos(4, 1, 2)).entrySet()) {
-                        var id = ResourceLocation.parse("mekanism:" + entry.getKey());
+                        var id = Identifier.parse("mekanism:" + entry.getKey());
                         if (!BuiltInRegistries.BLOCK.containsKey(id)) throw new IllegalStateException("Missing filming dependency: " + id);
-                        level.setBlockAndUpdate(ORIGIN.offset(entry.getValue()), BuiltInRegistries.BLOCK.get(id).defaultBlockState());
+                        level.setBlockAndUpdate(ORIGIN.offset(entry.getValue()), BuiltInRegistries.BLOCK.getValue(id).defaultBlockState());
                     }
                     for (int i = 0; i < 2; i++) {
                         var pos = ORIGIN.offset(i == 0 ? 1 : 5, 1, 1);
-                        level.setBlockAndUpdate(pos, BuiltInRegistries.BLOCK.get(ResourceLocation.parse("mekanism:basic_fluid_tank")).defaultBlockState());
+                        level.setBlockAndUpdate(pos, BuiltInRegistries.BLOCK.getValue(Identifier.parse("mekanism:basic_fluid_tank")).defaultBlockState());
                         var tile = level.getBlockEntity(pos);
                         try {
                             var tank = tile.getClass().getField("fluidTank").get(tile);
-                            var method = tank.getClass().getMethod("setStack", FluidStack.class);
+                            var method = java.util.Arrays.stream(tank.getClass().getMethods())
+                                    .filter(candidate -> candidate.getName().equals("setStack") && candidate.getParameterCount() == 1)
+                                    .findFirst().orElseThrow();
+                            var fluid = method.getParameterTypes()[0].getConstructor(net.minecraft.world.level.material.Fluid.class, int.class)
+                                    .newInstance(i == 0 ? Fluids.WATER : Fluids.LAVA, 8000);
                             method.setAccessible(true);
-                            method.invoke(tank, new FluidStack(i == 0 ? Fluids.WATER : Fluids.LAVA, 8000));
+                            method.invoke(tank, fluid);
                         } catch (ReflectiveOperationException error) { throw new IllegalStateException(error); }
                     }
                 })
                 .waitUntil("tank visuals synchronized", c -> {
                     for (int x : List.of(1, 5)) {
                         var tile = c.mc().level.getBlockEntity(ORIGIN.offset(x, 1, 1));
-                        if (tile == null || tile.getUpdateTag(c.mc().level.registryAccess()).getFloat("scale") <= 0) return false;
+                        if (tile == null || tile.getUpdateTag(c.mc().level.registryAccess()).getFloatOr("scale", 0) <= 0) return false;
                     }
                     return true;
                 }).waitMs(2000)
@@ -126,7 +128,7 @@ public final class VideoDemoScenario implements UIScenario {
                     scene.motion = BlockSceneElement.Motion.ROTATE;
                     scene.period = 800;
                     scene.ensureScene();
-                    c.check("captured scene contains entire set", scene.error.isEmpty() && scene.blocks.getList("blocks", 10).size() == 42);
+                    c.check("captured scene contains entire set", scene.error.isEmpty() && scene.blocks.getListOrEmpty("blocks").size() == 42);
                     c.put("videoScene", scene);
                     project(c).layoutView.hierarchy.loadUI(project(c).layoutView.getCurrentUI());
                     project(c).layoutView.startSimulation();
@@ -140,7 +142,7 @@ public final class VideoDemoScenario implements UIScenario {
                     if (full) {
                         var scene=project(c).layoutView.canvas.getCanvasModularUI().ui.rootElement.select("*").filter(BlockSceneElement.class::isInstance).map(BlockSceneElement.class::cast).findFirst().orElseThrow();
                         scene.ensureScene();
-                        c.check("source is air but snapshot contains 42 blocks",c.mc().level.getBlockState(ORIGIN).isAir()&&scene.blocks.getList("blocks",10).size()==42&&!scene.getDummyWorld().getBlockState(BlockPos.ZERO).isAir());
+                        c.check("source is air but snapshot contains 42 blocks",c.mc().level.getBlockState(ORIGIN).isAir()&&scene.blocks.getListOrEmpty("blocks").size()==42&&!scene.getDummyWorld().getBlockState(BlockPos.ZERO).isAir());
                         mark(c,"snapshot-proof");
                     }
                 }).waitMs(full ? 12000 : 1)
@@ -149,7 +151,7 @@ public final class VideoDemoScenario implements UIScenario {
                         var p = project(c);
                         p.layoutView.stopSimulation();
                         p.publish();
-                        var folder = FMLPaths.GAMEDIR.get().resolve("exports");
+                        var folder = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("exports");
                         Files.createDirectories(folder);
                         VjceProject.TYPE.saveProjectToFile(p, folder.resolve("processing-station.vjce").toFile());
                         mark(c, "published");
@@ -160,10 +162,10 @@ public final class VideoDemoScenario implements UIScenario {
     private static void showcase(ScenarioBuilder s) {
         s.waitUntil("JEI restarted with saved configuration", c -> VjceJeiPlugin.runtime != null)
                 .step("open registered category in normal JEI", c -> {
-                    var type = new mezz.jei.api.recipe.RecipeType<>(ResourceLocation.parse(ID), CategoryDocument.Recipe.class);
+                    var type = mezz.jei.api.recipe.types.IRecipeType.create(Identifier.parse(ID), CategoryDocument.Recipe.class);
                     var category = VjceJeiPlugin.runtime.getRecipeManager().getRecipeCategory(type);
                     c.check("saved category really registered", category != null && category.getRecipeType().getUid().toString().equals(ID));
-                    VjceJeiPlugin.runtime.getRecipesGui().showTypes(List.<mezz.jei.api.recipe.RecipeType<?>>of(type));
+                    VjceJeiPlugin.runtime.getRecipesGui().showTypes(List.<mezz.jei.api.recipe.types.IRecipeType<?>>of(type));
                 })
                 .waitUntil("normal JEI recipe browser visible", c -> c.mc().screen != null &&
                         c.mc().screen.getClass().getName().equals("mezz.jei.gui.recipes.RecipesGui"))

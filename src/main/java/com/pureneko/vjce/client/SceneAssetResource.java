@@ -11,7 +11,7 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.*;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.*;
 
@@ -69,7 +69,7 @@ final class SceneAssetResource extends Resource<CompoundTag> {
                 }
             });choose.setId("vjce_asset_search");choose.layout(l->{l.widthPercent(100);l.height(20);l.flexShrink(0);});
             edit.setTagResponder(tag->{
-                try{var data=((CompoundTag)tag).copy();validate(data);data.putString("assetId",value.getString("assetId"));
+                try{var data=((CompoundTag)tag).copy();validate(data);data.putString("assetId",value.getStringOr("assetId", ""));
                     provider.addResource(inspectedPath.get(),data);SceneAssets.changed();c.reloadSpecificResource(inspectedPath.get());error.setText("");
                 }catch(RuntimeException invalid){error.setText(invalid.getMessage());}
             });
@@ -80,7 +80,7 @@ final class SceneAssetResource extends Resource<CompoundTag> {
     }
     String cellId(IResourcePath path){return "vjce_asset_"+getName()+"_"+path.getPathWithType().hashCode();}
     private void validate(CompoundTag data){
-        if(entity){var id=ResourceLocation.tryParse(data.getString("id"));if(id==null||!BuiltInRegistries.ENTITY_TYPE.containsKey(id)||id.toString().equals("minecraft:player"))throw new IllegalArgumentException("Invalid entity ID");}
-        else if(BlockState.CODEC.parse(NbtOps.INSTANCE,data.getCompound("state")).getOrThrow().isAir())throw new IllegalArgumentException("Scene block cannot be air");
+        if(entity){var id=Identifier.tryParse(data.getStringOr("id", ""));if(id==null||!BuiltInRegistries.ENTITY_TYPE.containsKey(id)||id.toString().equals("minecraft:player"))throw new IllegalArgumentException("Invalid entity ID");}
+        else if(BlockState.CODEC.parse(NbtOps.INSTANCE,data.getCompoundOrEmpty("state")).getOrThrow().isAir())throw new IllegalArgumentException("Scene block cannot be air");
     }
 }

@@ -6,8 +6,8 @@ import com.lowdragmc.lowdraglib2.editor.ui.Editor;
 import com.lowdragmc.lowdraglib2.gui.ui.UITemplate;
 import com.pureneko.vjce.VisualJeiCategoryEditor;
 import com.pureneko.vjce.data.*;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import java.io.*;
 
 public final class VjceProject implements IProject {
@@ -21,7 +21,7 @@ public final class VjceProject implements IProject {
     public RecipeDataView dataView;
     public String sourceIssue = "";
     public boolean sourceEditable = true;
-    public boolean canCreateRecipes() { return document.target.isBlank() || com.pureneko.vjce.integration.VanillaDisplays.supports(net.minecraft.resources.ResourceLocation.parse(document.target)); }
+    public boolean canCreateRecipes() { return document.target.isBlank() || com.pureneko.vjce.integration.VanillaDisplays.supports(net.minecraft.resources.Identifier.parse(document.target)); }
     public boolean canEditSelectedRecipe() {
         return sourceEditable && !selected.source.startsWith("vjce:generated/") && (canCreateRecipes() || !selected.source.isBlank());
     }
@@ -49,15 +49,15 @@ public final class VjceProject implements IProject {
         captureLayout();
         VisualJeiCategoryEditor.STORE.save(document);
     }
-    @Override public CompoundTag serializeProject(HolderLookup.Provider provider) {
+    @Override public void serializeProject(ValueOutput output) {
         captureLayout();
-        var tag = new CompoundTag(); tag.putString("document", ProjectStore.JSON.toJson(document));
-        tag.putString("categoryFile", VisualJeiCategoryEditor.STORE.sourceFile(document)); return tag;
+        output.putString("document", ProjectStore.JSON.toJson(document));
+        output.putString("categoryFile", VisualJeiCategoryEditor.STORE.sourceFile(document));
     }
-    @Override public void deserializeProject(HolderLookup.Provider provider, CompoundTag nbt) {
-        document = ProjectStore.JSON.fromJson(nbt.getString("document"), CategoryDocument.class);
+    @Override public void deserializeProject(ValueInput input) {
+        document = ProjectStore.JSON.fromJson(input.getStringOr("document", ""), CategoryDocument.class);
         document.validate();
-        VisualJeiCategoryEditor.STORE.restoreSource(document, nbt.getString("categoryFile"));
+        VisualJeiCategoryEditor.STORE.restoreSource(document, input.getStringOr("categoryFile", ""));
         selected = document.recipes.isEmpty() ? new CategoryDocument.Recipe() : document.recipes.getFirst();
     }
     @Override public void onLoad(Editor editor) {

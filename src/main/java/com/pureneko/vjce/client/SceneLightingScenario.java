@@ -3,12 +3,12 @@ package com.pureneko.vjce.client;
 import com.lowdragmc.lowdraglib2.gui.ColorPattern;
 import com.lowdragmc.lowdraglib2.gui.ui.*;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
+import com.lowdragmc.lowdraglib2.gui.ui.rendering.IGUIContext;
 import com.lowdragmc.lowdraglib2.registry.RegistrationEnvironment;
 import com.lowdragmc.lowdraglib2.registry.annotation.LDLRegisterClient;
 import com.lowdragmc.lowdraglib2.uitest.*;
 import com.pureneko.vjce.data.ProjectStore;
 import com.pureneko.vjce.integration.VjceJeiPlugin;
-import com.pureneko.vjce.mixin.ShaderLightsAccess;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.world.level.block.Blocks;
@@ -20,12 +20,13 @@ import org.joml.Vector3f;
 public final class SceneLightingScenario implements UIScenario {
     @Override public void define(ScenarioBuilder s){
         s.waitUntil("JEI ready",c->VjceJeiPlugin.runtime!=null).openModularUI("Create lighting comparison",c->{
-            boolean create=net.neoforged.fml.ModList.get().isLoaded("create");c.put("lightingCreate",create);
+            boolean create=com.lowdragmc.lowdraglib2.Platform.isModLoaded("create");c.put("lightingCreate",create);
             var root=new UIElement().layout(l->{l.width(640);l.height(300);}).style(st->st.backgroundTexture(ColorPattern.GRAY.rectTexture()));
             var scene=new BlockSceneElement();scene.autoFrame=false;scene.cameraRange=1.5f;scene.cameraYaw=-135;scene.cameraPitch=25;scene.clock.playing=false;
-            try{scene.blocks=TagParser.parseTag("{blocks:[{x:0,y:0,z:0,state:{Name:'minecraft:diamond_block'}}]}");}catch(Exception e){throw new IllegalStateException(e);}
+            try{scene.blocks=TagParser.parseCompoundFully("{blocks:[{x:0,y:0,z:0,state:{Name:'minecraft:diamond_block'}}]}");}catch(Exception e){throw new IllegalStateException(e);}
             place(scene,40,40,160,160);root.addChild(scene);c.put("lightingScene",scene);
-            var reference=new UIElement(){@Override public void drawBackgroundAdditional(GUIContext context){
+            var reference=new UIElement(){@Override public void drawBackgroundAdditional(IGUIContext renderContext){
+                if (!(renderContext instanceof GUIContext context)) return;
                 if(create)renderCreate(context,getContentX()+getContentWidth()/2,getContentY()+getContentHeight()/2);
             }};place(reference,320,40,160,160);root.addChild(reference);c.put("lightingReference",reference);
             var a=new com.lowdragmc.lowdraglib2.gui.ui.elements.Label().setText("VJCE world camera");place(a,40,220,200,12);root.addChild(a);
@@ -33,11 +34,14 @@ public final class SceneLightingScenario implements UIScenario {
             return new ModularUI(UI.of(root),c.player());
         }).awaitModularUI()
         .check("new model path renders without requiring Create",c->c.<BlockSceneElement>get("lightingScene").error.isEmpty()&&c.<BlockSceneElement>get("lightingScene").getRenderer()!=null)
-        .step("draw restores caller custom lighting",c->{
-            var scene=c.<BlockSceneElement>get("lightingScene");var r=(SceneRenderer)scene.getRenderer();var old=ShaderLightsAccess.vjce$directions();var a=old[0];var b=old[1];
-            var custom0=new Vector3f(.2f,.3f,.9f).normalize();var custom1=new Vector3f(-.5f,.7f,.4f).normalize();
-            try{RenderSystem.setShaderLights(custom0,custom1);r.drawScene(0,0,160,160,0,0);var after=ShaderLightsAccess.vjce$directions();c.check("shader lights restored exactly",after[0].equals(custom0,.00001f)&&after[1].equals(custom1,.00001f));}
-            finally{RenderSystem.setShaderLights(a,b);}
+        .step("draw restores caller projection", c -> {
+            var scene = c.<BlockSceneElement>get("lightingScene");
+            var renderer = (VjceSceneRenderer) scene.getRenderer();
+            var projection = RenderSystem.getProjectionMatrixBuffer();
+            var model = new org.joml.Matrix4f(RenderSystem.getModelViewStack());
+            renderer.drawScene(0, 0, 160, 160, 0, 0);
+            c.check("projection and model-view restored",
+                    RenderSystem.getProjectionMatrixBuffer() == projection && RenderSystem.getModelViewStack().equals(model, .00001f));
         })
         .step("export lighting comparison coordinates",c->{
             var scene=ElementBounds.of(c.<BlockSceneElement>get("lightingScene")).center();var reference=ElementBounds.of(c.<UIElement>get("lightingReference")).center();double scale=c.mc().getWindow().getGuiScale();
@@ -55,7 +59,7 @@ public final class SceneLightingScenario implements UIScenario {
             type.getMethod("withRotationOffset",Vec3.class).invoke(builder,new Vec3(.5,.5,.5));
             type.getMethod("rotate",double.class,double.class,double.class).invoke(builder,25d,135d,0d);
             type.getMethod("scale",double.class).invoke(builder,160d/3);
-            type.getMethod("render",net.minecraft.client.gui.GuiGraphics.class).invoke(builder,context.graphics);
+            type.getMethod("render",net.minecraft.client.gui.GuiGraphicsExtractor.class).invoke(builder,context.graphics);
         }catch(Exception e){throw new IllegalStateException("Create reference rendering failed",e);}
     }
 }

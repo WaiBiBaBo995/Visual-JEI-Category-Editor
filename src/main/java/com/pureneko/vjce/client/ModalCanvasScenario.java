@@ -60,7 +60,7 @@ public final class ModalCanvasScenario implements UIScenario {
             var w = new EditorWindow(VjceEditor::new); var p = new VjceProject(VjceSmokeScenario.example()); c.put("editor", w.getCurrentEditor());
             java.io.File path = null;
             if (file) try {
-                path = net.neoforged.fml.loading.FMLPaths.GAMEDIR.get().resolve("qa-modal-save.vjce").toFile(); VjceProject.TYPE.saveProjectToFile(p, path); c.put("file", path);
+                path = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("qa-modal-save.vjce").toFile(); VjceProject.TYPE.saveProjectToFile(p, path); c.put("file", path);
             } catch (Exception failure) { throw new IllegalStateException(failure); }
             w.getCurrentEditor().loadProject(p, path); if (file) p.document.title = "Saved modal regression";
             return new ModularUI(UI.of(w), c.player());

@@ -13,7 +13,7 @@ import mezz.jei.api.gui.widgets.*;
 import mezz.jei.api.recipe.*;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.common.gui.elements.TextWidget;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.*;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.world.item.crafting.*;
@@ -107,14 +107,11 @@ public final class NativePage {
         Object raw = PREVIEWS.get(document.target + "|" + data.source);
         if (raw == null && !data.source.isBlank()) {
             raw = VjceJeiPlugin.runtime.getRecipeManager().createRecipeLookup(original.getRecipeType()).includeHidden().get()
-                    .filter(r -> data.source.equals(String.valueOf(original.getRegistryName(r)))).findFirst().orElse(null);
-            if (raw == null && net.minecraft.client.Minecraft.getInstance().level != null) {
-                var holder = net.minecraft.client.Minecraft.getInstance().level.getRecipeManager().byKey(net.minecraft.resources.ResourceLocation.parse(data.source));
-                if (holder.isPresent() && original.getRecipeType().getRecipeClass().isInstance(holder.get())) raw = holder.get();
-            }
+                    .filter(r -> data.source.equals(String.valueOf(original.getIdentifier(r)))).findFirst().orElse(null);
+
         }
         if (raw == null && data.source.isBlank() && !data.slots.isEmpty() && VanillaDisplays.supports(original.getRecipeType().getUid())) raw = VanillaDisplays.create(original.getRecipeType().getUid(), data);
-        if (raw == null) raw = VjceJeiPlugin.runtime.getRecipeManager().createRecipeLookup(original.getRecipeType()).get().findFirst().orElse(null);
+        if (raw == null && data.source.isBlank()) raw = VjceJeiPlugin.runtime.getRecipeManager().createRecipeLookup(original.getRecipeType()).get().findFirst().orElse(null);
         if (raw == null) return null;
         return create(original, raw, document, data, VjceJeiPlugin.helpers.getFocusFactory().createFocusGroup(List.of()), false);
     }
@@ -168,7 +165,7 @@ public final class NativePage {
         root.addChild(element("native_layer", "native", "JEI source drawing", 0, 0, original.getWidth(), original.getHeight()));
         int index = 0;
         for (IRecipeSlotDrawable slot : access.vjce$slots()) {
-            var area = slot.getRect();
+            var area = com.pureneko.vjce.integration.NativeSlotTransforms.rect(slot);
             int dataIndex = index < slotIndices.size() ? slotIndices.get(index) : index;
             root.addChild(element("slot_" + dataIndex, "slot_" + dataIndex, slot.getSlotName().orElse("JEI slot " + index), area.getX(), area.getY(), area.getWidth(), area.getHeight()));
             index++;
@@ -195,7 +192,7 @@ public final class NativePage {
     public static int x(UIElement root, UIElement element) { return Math.round(element.getContentX() - root.getContentX()); }
     public static int y(UIElement root, UIElement element) { return Math.round(element.getContentY() - root.getContentY()); }
     public void tickOnce() {
-        long now = net.minecraft.Util.getMillis() / 50;
+        long now = net.minecraft.util.Util.getMillis() / 50;
         if (now != lastTick) { lastTick = now; layout.tick(); applyPreviewIngredients(); }
     }
     private void applyPreviewIngredients() {
@@ -210,33 +207,33 @@ public final class NativePage {
         var root = boundRoot(element); if (root == null) return;
         var graphics = context.graphics;
         double mouseX = context.localMouseX - element.getContentX(), mouseY = context.localMouseY - element.getContentY();
-        graphics.flush(); graphics.pose().pushPose();
+        graphics.pose().pushMatrix();
         try {
-            graphics.pose().translate(element.getContentX(), element.getContentY(), 0);
+            graphics.pose().translate(element.getContentX(), element.getContentY());
             if (element.part.equals("page")) {
-                graphics.pose().scale(element.getContentWidth() / Math.max(1, original.getWidth()), element.getContentHeight() / Math.max(1, original.getHeight()), 1);
+                graphics.pose().scale(element.getContentWidth() / Math.max(1, original.getWidth()), element.getContentHeight() / Math.max(1, original.getHeight()));
                 layout.drawRecipe(graphics, (int) (mouseX * original.getWidth() / Math.max(1, element.getContentWidth())), (int) (mouseY * original.getHeight() / Math.max(1, element.getContentHeight())));
             } else if (element.part.equals("native")) {
-                graphics.pose().scale(element.getContentWidth() / Math.max(1, original.getWidth()), element.getContentHeight() / Math.max(1, original.getHeight()), 1);
+                graphics.pose().scale(element.getContentWidth() / Math.max(1, original.getWidth()), element.getContentHeight() / Math.max(1, original.getHeight()));
                 access.vjce$background().draw(graphics, layout.getRectWithBorder());
                 drawBase(graphics, layout.getRecipeSlotsView(), mouseX * original.getWidth() / Math.max(1, element.getContentWidth()), mouseY * original.getHeight() / Math.max(1, element.getContentHeight()));
             } else if (element.part.equals("overlay")) {
-                graphics.pose().scale(element.getContentWidth() / Math.max(1, original.getWidth()), element.getContentHeight() / Math.max(1, original.getHeight()), 1);
+                graphics.pose().scale(element.getContentWidth() / Math.max(1, original.getWidth()), element.getContentHeight() / Math.max(1, original.getHeight()));
                 {
                     drawOverlay(graphics, layout.getRecipeSlotsView(), mouseX * original.getWidth() / Math.max(1, element.getContentWidth()), mouseY * original.getHeight() / Math.max(1, element.getContentHeight()));
                 }
             } else if (element.part.startsWith("slot_")) {
                 var slot = previewSlot(element);
                 if (slot != null) {
-                    var area = slot.getRect();
-                    graphics.pose().scale(element.getContentWidth() / Math.max(1, area.getWidth()), element.getContentHeight() / Math.max(1, area.getHeight()), 1);
-                    graphics.pose().translate(-area.getX(), -area.getY(), 0);
+                    var area = com.pureneko.vjce.integration.NativeSlotTransforms.rect(slot);
+                    graphics.pose().scale(element.getContentWidth() / Math.max(1, area.getWidth()), element.getContentHeight() / Math.max(1, area.getHeight()));
+                    graphics.pose().translate(-area.getX(), -area.getY());
                     slot.draw(graphics, element.isHover());
                 } else if (displayData != null) {
                     var data = displayData.boundSlot(element.getId());
                     if (data != null) {
                         var background = VjceJeiPlugin.helpers.getGuiHelper().getSlotDrawable();
-                        graphics.pose().scale(element.getContentWidth() / 16, element.getContentHeight() / 16, 1);
+                        graphics.pose().scale(element.getContentWidth() / 16, element.getContentHeight() / 16);
                         background.draw(graphics, -1, -1);
                         var ingredients = IngredientAccess.decode(data);
                         if (!ingredients.isEmpty()) IngredientSlot.drawIngredient(graphics, ingredients.getFirst(), 0, 0, 16, 16,
@@ -246,12 +243,12 @@ public final class NativePage {
             } else {
                 var part = parts.get(element.part);
                 if (part != null) {
-                    graphics.pose().scale(element.getContentWidth() / part.width, element.getContentHeight() / part.height, 1);
+                    graphics.pose().scale(element.getContentWidth() / part.width, element.getContentHeight() / part.height);
                     widget(part, element).drawWidget(graphics, mouseX * part.width / Math.max(1, element.getContentWidth()), mouseY * part.height / Math.max(1, element.getContentHeight()));
                 }
             }
-            graphics.flush();
-        } finally { graphics.pose().popPose(); }
+
+        } finally { graphics.pose().popMatrix(); }
     }
     public IRecipeWidget widget(Part part, NativePartElement element) {
         if (part.widget instanceof TextWidgetAccess text && (!element.replacementText.isEmpty() || element.overrideTextColor)) {
@@ -263,26 +260,25 @@ public final class NativePage {
         }
         return part.widget;
     }
-    public void drawBase(GuiGraphics graphics, IRecipeSlotsView slots, double mouseX, double mouseY) {
-        var background = original.getBackground(); if (background != null) background.draw(graphics);
+    public void drawBase(GuiGraphicsExtractor graphics, IRecipeSlotsView slots, double mouseX, double mouseY) {
         var sourceRoot=drawingRoot.get();var layer=sourceRoot==null?null:part(sourceRoot,"native_layer");
         if(layer==null)original.draw(recipe,slots,graphics,mouseX,mouseY);
         else try(var scope=drawing.open(sourceRoot,graphics,layer,mouseX,mouseY)){original.draw(recipe, slots, graphics, mouseX, mouseY);}
     }
-    public void drawUnknown(GuiGraphics graphics, double mouseX, double mouseY) {
+    public void drawUnknown(GuiGraphicsExtractor graphics, double mouseX, double mouseY) {
         for (var widget : unknown) {
-            var pos = widget.getPosition(); graphics.pose().pushPose();
-            try { graphics.pose().translate(pos.x(), pos.y(), 0); widget.drawWidget(graphics, mouseX - pos.x(), mouseY - pos.y()); }
-            finally { graphics.pose().popPose(); }
+            var pos = widget.getPosition(); graphics.pose().pushMatrix();
+            try { graphics.pose().translate(pos.x(), pos.y()); widget.drawWidget(graphics, mouseX - pos.x(), mouseY - pos.y()); }
+            finally { graphics.pose().popMatrix(); }
         }
         for (var drawable : access.vjce$drawables()) drawable.draw(graphics);
     }
-    public void drawOverlay(GuiGraphics graphics, IRecipeSlotsView slots, double mouseX, double mouseY) {
+    public void drawOverlay(GuiGraphicsExtractor graphics, IRecipeSlotsView slots, double mouseX, double mouseY) {
         var sourceRoot=drawingRoot.get();var layer=sourceRoot==null?null:part(sourceRoot,"native_overlay");
         if(layer==null)drawOverlaySource(graphics,slots,mouseX,mouseY);
         else try(var scope=drawing.open(sourceRoot,graphics,layer,mouseX,mouseY)){drawOverlaySource(graphics,slots,mouseX,mouseY);}
     }
-    private void drawOverlaySource(GuiGraphics graphics,IRecipeSlotsView slots,double mouseX,double mouseY){
+    private void drawOverlaySource(GuiGraphicsExtractor graphics,IRecipeSlotsView slots,double mouseX,double mouseY){
         drawUnknown(graphics, mouseX, mouseY);
         for (var decorator : access.vjce$decorators()) ((mezz.jei.api.recipe.category.extensions.IRecipeCategoryDecorator) decorator).draw(recipe, original, slots, graphics, mouseX, mouseY);
         if (access.vjce$shapeless() != null) access.vjce$shapeless().draw(graphics);

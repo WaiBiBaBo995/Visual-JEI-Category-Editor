@@ -6,13 +6,13 @@ import com.lowdragmc.lowdraglib2.gui.ui.data.Transform2D;
 import com.lowdragmc.lowdraglib2.gui.ui.event.*;
 import com.lowdragmc.lowdraglib2.gui.ui.layout.LayoutProperties;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
+import com.lowdragmc.lowdraglib2.gui.ui.rendering.IGUIContext;
 import com.lowdragmc.lowdraglib2.gui.ui.style.PropertyRegistry;
 import com.lowdragmc.lowdraglib2.gui.ui.style.Property;
-import com.lowdragmc.lowdraglib2.gui.util.DrawerHelper;
+import com.lowdragmc.lowdraglib2.gui.util.DrawerHelperClient;
 import com.pureneko.vjce.data.CategoryDocument;
 import dev.vfyjxf.taffy.style.*;
 import net.minecraft.network.chat.Component;
-import org.appliedenergistics.yoga.numeric.FloatOptional;
 import org.joml.*;
 import org.lwjgl.glfw.GLFW;
 import java.lang.Math;
@@ -28,7 +28,8 @@ final class RecipeCanvasTransform {
     private Gesture gesture;
     private final List<Vector2f[]> guides = new ArrayList<>();
     private final UIElement overlay = new UIElement() {
-        @Override public void drawBackgroundAdditional(GUIContext context) { draw(context); }
+        @Override public void drawBackgroundAdditional(IGUIContext renderContext) {
+        if (!(renderContext instanceof GUIContext context)) return; draw(context); }
     };
     private record Handle(int x, int y) {}
     private record Snapshot(Map<Property<?>, Object> layout, Transform2D transform, int width, int height) {}
@@ -36,7 +37,7 @@ final class RecipeCanvasTransform {
         UIElement element;
         Snapshot before;
         Transform2D transform;
-        Matrix4f parentInverse, elementInverse;
+        Matrix3x2f parentInverse, elementInverse;
         Vector2f start, localStart, center;
         float x, y, w, h, angle, lastAngle, accumulated;
         Handle handle;
@@ -82,7 +83,7 @@ final class RecipeCanvasTransform {
     }
     boolean hasGuides() { return !guides.isEmpty(); }
     Vector2f world(UIEvent event) {
-        var p = view.getModularUI().getLastDrawPose().transformPosition(new Vector3f(event.x, event.y, 0), new Vector3f());
+        var p = view.getModularUI().getLastDrawPose().transformPosition(event.x, event.y, new Vector2f());
         return new Vector2f(p.x, p.y);
     }
     boolean intercept(UIEvent event, Vector2f mouse) {
@@ -108,11 +109,11 @@ final class RecipeCanvasTransform {
         cancel();
         var g = new Gesture(); g.element = element; g.before = snapshot(element); g.transform = element.getStyle().transform2D().copy();
         var parent = element.getParent();
-        g.parentInverse = new Matrix4f(parent == null ? element.getLocalToWorldPose() : parent.getLocalToWorldPose()).invert();
-        g.elementInverse = new Matrix4f(element.getLocalToWorldPose()).invert();
+        g.parentInverse = new Matrix3x2f(parent == null ? element.getLocalToWorldPose() : parent.getLocalToWorldPose()).invert();
+        g.elementInverse = new Matrix3x2f(element.getLocalToWorldPose()).invert();
         g.start = point(g.parentInverse, mouse); g.localStart = point(g.elementInverse, mouse);
         g.x = element.getPositionX(); g.y = element.getPositionY(); g.w = element.getSizeWidth(); g.h = element.getSizeHeight();
-        g.center = point(g.parentInverse, point(new Matrix4f(element.getLocalToWorldPose()), new Vector2f(g.x + g.w / 2, g.y + g.h / 2)));
+        g.center = point(g.parentInverse, point(new Matrix3x2f(element.getLocalToWorldPose()), new Vector2f(g.x + g.w / 2, g.y + g.h / 2)));
         g.angle = g.transform.rotation(); g.lastAngle = (float) Math.atan2(g.start.y - g.center.y, g.start.x - g.center.x);
         g.handle = handle; g.rotate = rotate; gesture = g;
         view.graphView.startDrag(g, null);
@@ -122,7 +123,7 @@ final class RecipeCanvasTransform {
         var g = gesture;
         if (g == null || event.dragHandler.draggingObject != g) return;
         var mouse = world(event); guides.clear();
-        if (mouse.distanceSquared(point(new Matrix4f(g.parentInverse).invert(), g.start)) < 0.25f && !g.changed) return;
+        if (mouse.distanceSquared(point(new Matrix3x2f(g.parentInverse).invert(), g.start)) < 0.25f && !g.changed) return;
         g.changed = true;
         if (g.rotate) {
             var parentMouse = point(g.parentInverse, mouse);
@@ -145,7 +146,7 @@ final class RecipeCanvasTransform {
             if (!UIElement.isAltDown()) {
                 var box = gestureBounds(g, x, y, g.w, g.h);
                 var correction = snap(g, box, null);
-                var local = new Matrix4f(g.parentInverse).transformDirection(new Vector3f(correction.x, correction.y, 0));
+                var local = new Matrix3x2f(g.parentInverse).transformDirection(correction.x, correction.y, new Vector2f());
                 x += local.x; y += local.y;
             }
             place(g, x, y, g.w, g.h);
@@ -153,7 +154,7 @@ final class RecipeCanvasTransform {
             var delta = point(g.elementInverse, mouse).sub(g.localStart);
             int hx = g.handle.x, hy = g.handle.y;
             float w = Math.max(1, g.w + hx * delta.x), h = Math.max(1, g.h + hy * delta.y);
-            boolean proportional = UIElement.isCtrlDown() && hx != 0 && hy != 0;
+            boolean proportional = UIElement.isControlDown() && hx != 0 && hy != 0;
             if (proportional) {
                 float ratio = Math.abs(w / g.w - 1) >= Math.abs(h / g.h - 1) ? w / g.w : h / g.h;
                 ratio = Math.max(Math.max(1 / g.w, 1 / g.h), ratio); w = g.w * ratio; h = g.h * ratio;
@@ -222,7 +223,7 @@ final class RecipeCanvasTransform {
         }
         l.setInline(LayoutProperties.MIN_WIDTH, TaffyDimension.ZERO); l.setInline(LayoutProperties.MIN_HEIGHT, TaffyDimension.ZERO);
         l.setInline(LayoutProperties.MAX_WIDTH, TaffyDimension.auto()); l.setInline(LayoutProperties.MAX_HEIGHT, TaffyDimension.auto());
-        l.setInline(LayoutProperties.ASPECT_RATE, FloatOptional.of());
+        l.setInline(LayoutProperties.ASPECT_RATE, Float.NaN);
         l.width(w); l.height(h);
         if (g.element == root()) { document.width = Math.clamp(Math.round(w), 18, 2048); document.height = Math.clamp(Math.round(h), 18, 2048); l.width(document.width); l.height(document.height); }
         root().clearPoseCache();
@@ -253,7 +254,7 @@ final class RecipeCanvasTransform {
     }
     private static float[] features(Vector4f b) { return new float[]{b.x, (b.x + b.z) / 2, b.z, b.y, (b.y + b.w) / 2, b.w}; }
     private Vector4f gestureBounds(Gesture g, float x, float y, float w, float h) {
-        var matrix = new Matrix4f(g.parentInverse).invert();
+        var matrix = new Matrix3x2f(g.parentInverse).invert();
         var b = new Vector4f(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
         for (int ay = 0; ay <= 1; ay++) for (int ax = 0; ax <= 1; ax++) {
             var p = point(matrix, transformed(g.transform, x, y, w, h, ax, ay));
@@ -261,14 +262,14 @@ final class RecipeCanvasTransform {
         }
         return b;
     }
-    private static Vector4f bounds(Matrix4f matrix, float x, float y, float w, float h) {
+    private static Vector4f bounds(Matrix3x2f matrix, float x, float y, float w, float h) {
         var b = new Vector4f(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
         for (var p : List.of(new Vector2f(x, y), new Vector2f(x + w, y), new Vector2f(x, y + h), new Vector2f(x + w, y + h))) {
             p = point(matrix, p); b.x = Math.min(b.x, p.x); b.y = Math.min(b.y, p.y); b.z = Math.max(b.z, p.x); b.w = Math.max(b.w, p.y);
         }
         return b;
     }
-    private static Vector2f point(Matrix4f matrix, Vector2f p) { var v = matrix.transformPosition(new Vector3f(p.x, p.y, 0)); return new Vector2f(v.x, v.y); }
+    private static Vector2f point(Matrix3x2f matrix, Vector2f p) { var v = matrix.transformPosition(p.x, p.y, new Vector2f()); return new Vector2f(v.x, v.y); }
     private Handle hitHandle(UIElement e, Vector2f mouse) {
         float radius = (float) (6 / net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale());
         for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
@@ -276,7 +277,8 @@ final class RecipeCanvasTransform {
             if (handlePoint(e, x, y).distance(mouse) <= radius) return new Handle(x, y);
         }
         var local = e.getLocalMouse(mouse.x, mouse.y);
-        var scale = e.getLocalToWorldPose().getScale(new Vector3f());
+        var pose = e.getLocalToWorldPose();
+        var scale = new Vector2f((float) Math.hypot(pose.m00(), pose.m01()), (float) Math.hypot(pose.m10(), pose.m11()));
         float px = local.x - e.getPositionX(), py = local.y - e.getPositionY();
         boolean horizontal = px >= 0 && px <= e.getSizeWidth(), vertical = py >= 0 && py <= e.getSizeHeight();
         if (horizontal && Math.abs(py) * scale.y < radius) return new Handle(0, -1);
@@ -342,7 +344,7 @@ final class RecipeCanvasTransform {
             for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
                 if (x == 0 && y == 0) continue;
                 var p = handlePoint(editing, x, y); p = overlay.getLocalMouse(p.x, p.y);
-                DrawerHelper.drawSolidRect(context.graphics, p.x - 2, p.y - 2, 4, 4, 0xff55ff55);
+                DrawerHelperClient.drawSolidRect(context, p.x - 2, p.y - 2, 4, 4, 0xff55ff55);
             }
         }
         for (var guide : guides) drawPixelGuide(context, guide[0], guide[1]);
@@ -351,17 +353,17 @@ final class RecipeCanvasTransform {
         // Guide endpoints already use final GUI screen coordinates, independent of graph zoom.
         // Draw in that space: exactly one framebuffer pixel, aligned to the pixel grid.
         var graphics = context.graphics;
-        float scale = (float) context.surface.guiScale(), pixel = 1 / scale;
-        graphics.flush(); graphics.pose().pushPose();
+        float scale = context.mc.getWindow().getGuiScale(), pixel = 1 / scale;
+        graphics.pose().pushMatrix();
         try {
-            graphics.pose().last().pose().identity();
-            if (Math.abs(a.x - b.x) < .01f) DrawerHelper.drawSolidRect(graphics,
+            graphics.pose().identity();
+            if (Math.abs(a.x - b.x) < .01f) DrawerHelperClient.drawSolidRect(context,
                     Math.round(a.x * scale) / scale, Math.min(a.y, b.y), pixel, Math.abs(b.y - a.y), 0xffff66ff);
-            else DrawerHelper.drawSolidRect(graphics, Math.min(a.x, b.x), Math.round(a.y * scale) / scale, Math.abs(b.x - a.x), pixel, 0xffff66ff);
-            graphics.flush();
-        } finally { graphics.pose().popPose(); }
+            else DrawerHelperClient.drawSolidRect(context, Math.min(a.x, b.x), Math.round(a.y * scale) / scale, Math.abs(b.x - a.x), pixel, 0xffff66ff);
+
+        } finally { graphics.pose().popMatrix(); }
     }
     private void line(GUIContext context, List<Vector2f> world, int color) {
-        DrawerHelper.drawLines(context.graphics, world.stream().map(p -> overlay.getLocalMouse(p.x, p.y)).toList(), color, color, 1);
+        DrawerHelperClient.drawLines(context, world.stream().map(p -> overlay.getLocalMouse(p.x, p.y)).toList(), color, color, 1);
     }
 }

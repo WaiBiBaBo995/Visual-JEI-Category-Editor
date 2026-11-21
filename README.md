@@ -6,9 +6,9 @@
 **Make JEI recipe pages your canvas.**
 
 ![Version](https://img.shields.io/badge/version-1.0.0-4c9b65?style=flat-square)
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62a047?style=flat-square)
-![NeoForge](https://img.shields.io/badge/loader-NeoForge-e58d45?style=flat-square)
-![Java](https://img.shields.io/badge/Java-21-5382a1?style=flat-square)
+![Minecraft](https://img.shields.io/badge/Minecraft-26.1.2-62a047?style=flat-square)
+![Fabric](https://img.shields.io/badge/loader-Fabric-e58d45?style=flat-square)
+![Java](https://img.shields.io/badge/Java-25-5382a1?style=flat-square)
 ![Client](https://img.shields.io/badge/environment-client-7885b5?style=flat-square)
 
 [简体中文](#简体中文) · [English](#english) ·
@@ -65,33 +65,17 @@
 
 ### 安装
 
-两个版本按分支独立维护，安装时请选择对应 Minecraft 版本的 JAR 和前置：
+此分支面向 **Minecraft 26.1.2、Fabric、Java 25**。将下列前置及 VJCE JAR 放入客户端的 `mods/`。原版 1.21.1 和 1.20.1 Forge 源码见上游 [main](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/main) 和 [forge-1.20.1](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/forge-1.20.1)。
 
-| Minecraft | 加载器 / Java | 源码与说明 |
-| --- | --- | --- |
-| 1.21.1 | NeoForge / Java 21 | `main` 分支，下表介绍此版本 |
-| 1.20.1 | Forge / Java 17 | [forge-1.20.1 分支](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/forge-1.20.1) |
+| 组件 | 此分支构建版本 |
+| --- | --- |
+| Fabric Loader | `0.19.5` |
+| Fabric API | `0.155.3+26.1.2` |
+| Fabric Language Kotlin | `1.13.11+kotlin.2.3.21` |
+| LDLib2 | `26.1.2.42`，[TysonTheEmber Fabric 发行包](https://www.curseforge.com/minecraft/mc-mods/ldlib2-fabric/files/9505897) |
+| JEI | `29.53.0.115`，Fabric 发行包 |
 
-使用 **Minecraft 1.21.1 + Java 21 + NeoForge**，将 VJCE 的模组 JAR
-及两个必需前置放入客户端实例的 `mods/` 文件夹。源码 JAR 不用于安装。
-
-| 组件 | VJCE 声明的最低要求（无上限） | 开发／验收版本 |
-| --- | --- | --- |
-| NeoForge | `>= 21.1.216`，适用于 Minecraft 1.21.1 | `21.1.248`、`21.1.262` |
-| LDLib2 | `>= 2.2.44` | `2.2.44`，NeoForge 1.21.1 **all** 发行包 |
-| JEI | `>= 19.64.0.455` | `19.70.0.464` |
-
-表中为 VJCE 自身的依赖声明；实际安装还需满足所选依赖各自的要求。
-例如 JEI `19.64.0.455` 自身要求 NeoForge `21.1.238+`。
-放宽后的 JEI 下限已核对 API 和关键 Mixin 签名，尚未新增旧版组合的实机验收。
-编译依赖仍固定为原开发版本；取消上限不代表所有后续版本都已验证兼容。
-LDLib2 `2.2.44` 提供当前编辑器必需接口，因此保留其下限。
-已检查的 JEI `19.64.0.455` 官方制品另有 Minecraft 版本声明冲突，
-具体安装限制见 [依赖元数据说明](docs/GUIDE.zh-CN.md#依赖元数据说明)。
-
-**可选集成**：Mekanism `1.21.1-10.7.19.85`、Create `6.0.11-320` 已有验收记录。
-Create 机械动画预设需要安装 Create 及其自身前置；普通方块、实体和世界快照无需 Create。
-MBD2 是编辑器交互的参考项目，无需安装。
+Fabric 与 NeoForge 26.1.2 版共用 `.vjce` 格式，流体数量以毫桶存储。打开 1.21.1 的工程时，可以另存为新的项目文件以保留原件。旧工程引用的内容需要在 26.1.2 运行环境中可用。上游的 Create 和 Mekanism 验收记录对应 1.21.1。
 
 ### 快速开始
 
@@ -233,35 +217,17 @@ Development and validation versions are listed in Installation below.
 
 ### Installation
 
-The two versions are maintained on separate branches. Choose the JAR and dependencies for your Minecraft version:
+This branch targets **Minecraft 26.1.2, Fabric and Java 25**. Install the VJCE JAR and the dependencies below in the client instance's `mods/` folder. The upstream [main](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/main) and [Forge 1.20.1](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/forge-1.20.1) branches document the original builds.
 
-| Minecraft | Loader / Java | Source and instructions |
-| --- | --- | --- |
-| 1.21.1 | NeoForge / Java 21 | `main` branch; documented below |
-| 1.20.1 | Forge / Java 17 | [forge-1.20.1 branch](https://github.com/WaiBiBaBo995/Visual-JEI-Category-Editor/tree/forge-1.20.1) |
+| Component | Build version |
+| --- | --- |
+| Fabric Loader | `0.19.5` |
+| Fabric API | `0.155.3+26.1.2` |
+| Fabric Language Kotlin | `1.13.11+kotlin.2.3.21` |
+| LDLib2 | `26.1.2.42`, [TysonTheEmber Fabric build](https://www.curseforge.com/minecraft/mc-mods/ldlib2-fabric/files/9505897) |
+| JEI | `29.53.0.115`, Fabric build |
 
-Use **Minecraft 1.21.1, Java 21 and NeoForge**. Place the VJCE mod JAR and both
-required dependencies in the client's `mods/` folder. Do not install the sources JAR.
-
-| Component | VJCE minimum declaration (no upper bound) | Development / validation versions |
-| --- | --- | --- |
-| NeoForge | `>= 21.1.216`, for Minecraft 1.21.1 | `21.1.248`, `21.1.262` |
-| LDLib2 | `>= 2.2.44` | `2.2.44`, NeoForge 1.21.1 **all** distribution |
-| JEI | `>= 19.64.0.455` | `19.70.0.464` |
-
-These are VJCE's own declarations; the selected dependencies also enforce their own requirements.
-For example, JEI `19.64.0.455` requires NeoForge `21.1.238+`.
-The lower JEI baseline has been checked against API references and key Mixin signatures;
-the older combinations have not received new in-game validation.
-Compile dependencies remain pinned. Removing upper bounds does not verify every later release.
-LDLib2 `2.2.44` provides required editor APIs, so its minimum is retained.
-The inspected official JEI `19.64.0.455` artifact also has conflicting Minecraft metadata;
-see the [dependency metadata notes](docs/GUIDE.zh-CN.md#dependency-metadata-notes).
-
-**Optional integrations:** Mekanism `1.21.1-10.7.19.85` and Create `6.0.11-320`
-have recorded validation runs. Create animation presets require Create and its dependencies;
-ordinary block scenes, entities and world snapshots work without Create.
-MBD2 inspired the editor workflow and is not a dependency.
+Fabric and NeoForge 26.1.2 use the same `.vjce` format, with fluid amounts stored in millibuckets. To preserve your original 1.21.1 file, save the opened project under a new name. Referenced content must be available on 26.1.2. The upstream Create and Mekanism test results cover 1.21.1.
 
 ### Quick start
 

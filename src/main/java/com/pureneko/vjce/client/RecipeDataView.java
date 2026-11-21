@@ -13,7 +13,6 @@ import com.pureneko.vjce.VisualJeiCategoryEditor;
 import com.pureneko.vjce.data.*;
 import com.pureneko.vjce.integration.*;
 import net.minecraft.network.chat.Component;
-import net.neoforged.fml.loading.FMLPaths;
 import java.util.*;
 
 public final class RecipeDataView extends View {
@@ -43,7 +42,7 @@ public final class RecipeDataView extends View {
                 new Button().setText("vjce.publish").setOnClick(e -> action(() -> { project.publish(); status.setText("vjce.saved_reenter"); })),
                 new Button().setText("vjce.export").setOnClick(e -> action(() -> {
                     project.publish();
-                    VisualJeiCategoryEditor.STORE.exportZip(FMLPaths.GAMEDIR.get().resolve("exports/vjce-modpack.zip"), com.lowdragmc.lowdraglib2.LDLib2.getAssetsDir().toPath());
+                    VisualJeiCategoryEditor.STORE.exportZip(net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("exports/vjce-modpack.zip"), com.lowdragmc.lowdraglib2.LDLib2.getAssetsDir().toPath());
                     status.setText("exports/vjce-modpack.zip");
                 })));
         scroll.layout(l -> { l.widthPercent(100); l.flex(1); });
@@ -58,7 +57,7 @@ public final class RecipeDataView extends View {
         if (selectedSlot != null && (categoryMode || inspectedRecipe != project.selected || !project.canEditSelectedRecipe()
                 || !project.selected.slots.contains(selectedSlot))) clearSlotSelection();
         slotButtons.clear();
-        var root = scroll.getContentHost(); root.clearAllChildren();
+        var root = scroll.viewContainer; root.clearAllChildren();
         split.first.setDisplay(!categoryMode);
         if (categoryMode) {
             Forms.object(root, project.document, this::refresh, () -> {}, Set.of("layout", "recipes", "schemaVersion", "nativeOriginElements", "catalysts"));
@@ -339,7 +338,7 @@ public final class RecipeDataView extends View {
     }
     private void ingredientsChanged() { project.selected.overrideIngredients = true; project.selected.focusLinks.clear(); refreshPreview(); }
     private void rebuildBrowser() {
-        var root = browser.getContentHost(); root.clearAllChildren(); root.addChild(browserResults);
+        var root = browser.viewContainer; root.clearAllChildren(); root.addChild(browserResults);
         if (!project.document.target.isBlank()) browseOriginals(root);
     }
     private void rebuildSavedRecipes() {
@@ -367,11 +366,11 @@ public final class RecipeDataView extends View {
             results.clearAllChildren();
             var recipes = VjceJeiPlugin.runtime.getRecipeManager().createRecipeLookup(original.getRecipeType()).get()
                     .filter(r -> {
-                        var id = ((mezz.jei.api.recipe.category.IRecipeCategory) original).getRegistryName(r);
+                        var id = ((mezz.jei.api.recipe.category.IRecipeCategory) original).getIdentifier(r);
                         return browserSearch.isBlank() || String.valueOf(id).contains(browserSearch);
                     }).skip(browserPage * 25L).limit(25).toList();
             for (Object raw : recipes) {
-                var id = ((mezz.jei.api.recipe.category.IRecipeCategory) original).getRegistryName(raw);
+                var id = ((mezz.jei.api.recipe.category.IRecipeCategory) original).getIdentifier(raw);
                 results.addChild(recipeButton(String.valueOf(id == null ? raw : id), id != null && id.toString().equals(project.selected.source), () -> action(() -> {
                     var record = CapturedCategory.capture((mezz.jei.api.recipe.category.IRecipeCategory) original, raw);
                     var existing = project.document.recipes.stream().filter(r -> r.source.equals(record.source)).findFirst();

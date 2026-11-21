@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "vjce:qa/crafting",
+  "target": "minecraft:crafting",
+  "title": "QA Crafting",
+  "width": 116,
+  "height": 54
+}

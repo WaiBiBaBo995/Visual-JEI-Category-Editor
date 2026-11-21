@@ -65,6 +65,13 @@ public final class RecipeLayoutView extends UIEditorView {
     boolean canvasInputAllowed() {
         return project.sourceEditable && com.pureneko.vjce.integration.NativePage.visible(this) && !isSimulationRunning() && !modalBlocksCanvas();
     }
+
+    @Override public void screenTick() {
+        super.screenTick();
+        var preview = modularUIPreview.getPreviewModularUI();
+        if (preview != null && !isSimulationRunning()) preview.tick();
+    }
+
     @Override public RecipeLayoutView loadTemplate(UITemplate template, Consumer<UITemplate> saved) {
         if (transforms != null) transforms.clear();
         super.loadTemplate(RecipeUI.canvasTemplate(template.copy()), saved);
@@ -79,7 +86,7 @@ public final class RecipeLayoutView extends UIEditorView {
             var preview = modularUIPreview.getPreviewModularUI();
             if (preview != null) {
                 int[] size={getCurrentUI().rootElement.select("*").toList().size()};
-                preview.addFrameCallback(time -> {
+                preview.ui.rootElement.addEventListener(UIEvents.TICK, event -> {
                     preview.ui.rootElement.clearPoseCache();
                     var nativePage=com.pureneko.vjce.integration.NativePage.context(getCurrentUI().rootElement);
                     if(nativePage!=null)nativePage.drawing.mount(getCurrentUI().rootElement,project.document);

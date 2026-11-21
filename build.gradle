@@ -1,86 +1,98 @@
 plugins {
     id 'java-library'
-    id 'net.neoforged.moddev' version '2.0.148'
+    id 'net.fabricmc.fabric-loom' version '1.16.3'
 }
 
 group = 'com.pureneko.vjce'
 version = mod_version
-base { archivesName = 'vjce-1.21.1' }
+base { archivesName = "vjce-${minecraft_version}-fabric" }
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
     withSourcesJar()
 }
+
 repositories {
     mavenCentral()
-    maven { url = 'https://maven.firstdark.dev/snapshots' }
-    maven { url = 'https://maven.blamejared.com' }
-    maven { url = 'https://modmaven.dev' }
-    maven { url = 'https://maven.createmod.net' }
-    maven { url = 'https://maven.ithundxr.dev/snapshots' }
+    exclusiveContent {
+        forRepository { maven { url = 'https://www.cursemaven.com' } }
+        filter { includeGroup 'curse.maven' }
+    }
+    exclusiveContent {
+        forRepository { maven { url = 'https://maven.blamejared.com' } }
+        filter { includeGroup 'mezz.jei'; includeGroup 'net.mezzdev.config' }
+    }
+    maven { url = 'https://maven.firstdark.dev/snapshots'; content { includeGroup 'dev.vfyjxf' } }
 }
-neoForge {
-    version = neo_version
+
+def testPackagedMod = providers.gradleProperty('testPackagedMod').isPresent()
+def uiTest = providers.gradleProperty('uiTest')
+def uiTestImport = providers.gradleProperty('uiTestImport')
+def clientDirectory = testPackagedMod ? 'run/fabric-26.1.2-packaged' : 'run/fabric-26.1.2'
+loom {
+    mods {
+        if (!testPackagedMod) vjce { sourceSet sourceSets.main }
+    }
     runs {
         client {
             client()
-            if (providers.gradleProperty('videoDemo').isPresent()) {
-                if (providers.gradleProperty('uiTest').isPresent()) throw new GradleException('Use videoDemo or uiTest, not both')
-                def videoPhase = providers.gradleProperty('videoDemo').get()
-                if (!(videoPhase in ['capture', 'showcase', 'world', 'showcase-full', 'authoring', 'native', 'resources', 'snapshot', 'create', 'publish'])) throw new GradleException('Unknown videoDemo phase')
-                gameDirectory = file('video-production/game')
-                systemProperty 'ldlib2.uitest.run', videoPhase in ['capture','showcase','world','showcase-full'] ? 'vjce_video' : 'vjce_video_full'
-                systemProperty 'ldlib2.uitest.out', providers.gradleProperty('videoOut').getOrElse(layout.buildDirectory.dir('video-takes/' + videoPhase).get().asFile.absolutePath)
-                systemProperty 'ldlib2.uitest.window', '1920x1080'
-                systemProperty 'ldlib2.uitest.guiScale', '2'
-                systemProperty 'ldlib2.uitest.inputMode', 'SYNTHETIC'
-                systemProperty 'ldlib2.uitest.headless', 'false'
-                systemProperty 'ldlib2.uitest.keepOpen', 'false'
-                systemProperty 'vjce.video.phase', videoPhase
-            }
-            if (providers.gradleProperty('uiTest').isPresent()) {
-                systemProperty 'ldlib2.uitest.run', providers.gradleProperty('uiTest').get().trim() ?: 'group:vjce'
-                systemProperty 'ldlib2.uitest.out', layout.buildDirectory.dir('ui-test').get().asFile.absolutePath
-                systemProperty 'ldlib2.uitest.window', '1600x900'
-                systemProperty 'ldlib2.uitest.guiScale', '2'
-                systemProperty 'ldlib2.uitest.inputMode', 'SYNTHETIC'
-                systemProperty 'ldlib2.uitest.headless', 'true'
-                systemProperty 'vjce.compatTest', 'true'
+            runDir clientDirectory
+            if (uiTest.isPresent()) {
+                property 'ldlib2.uitest.run', uiTest.get().trim() ?: 'group:vjce'
+                property 'ldlib2.uitest.out', layout.buildDirectory.dir('ui-test').get().asFile.absolutePath
+                property 'ldlib2.uitest.window', '1600x900'
+                property 'ldlib2.uitest.guiScale', '2'
+                property 'ldlib2.uitest.inputMode', 'SYNTHETIC'
+                property 'ldlib2.uitest.headless', 'true'
+                property 'vjce.compatTest', 'true'
+                if (uiTestImport.isPresent()) {
+                    property 'vjce.uitest.importProject', file(uiTestImport.get()).absolutePath
+                }
             }
         }
-        configureEach { if (!providers.gradleProperty('videoDemo').isPresent()) gameDirectory = file('run') }
-    }
-    mods {
-        vjce { sourceSet(sourceSets.main) }
     }
 }
+
 dependencies {
-    implementation "com.lowdragmc.ldlib2:ldlib2-neoforge-1.21.1:${ldlib2_version}:all"
-    implementation "mezz.jei:jei-1.21.1-neoforge:${jei_version}"
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    implementation "net.fabricmc:fabric-language-kotlin:${fabric_kotlin_version}"
+    implementation "mezz.jei:jei-${minecraft_version}-fabric:${jei_version}@jar"
+    implementation "curse.maven:ldlib2-fabric-1790983:${ldlib2_file}"
+    compileOnly 'dev.vfyjxf:taffy:1.1.5'
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'com.google.code.gson:gson:2.11.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
-if (providers.gradleProperty('withMekanism').orNull == 'true') {
-    dependencies { runtimeOnly "mekanism:Mekanism:${mekanism_version}" }
-}
-if (providers.gradleProperty('withCreate').orNull == 'true') {
-    dependencies { runtimeOnly 'com.simibubi.create:create-1.21.1:6.0.11-320' }
-}
 
-tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
-tasks.withType(Test).configureEach { useJUnitPlatform() }
-tasks.named('jar') {
-    manifest { attributes('Implementation-Version': project.version) }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xmaxerrs', '500']
 }
+tasks.withType(Test).configureEach { useJUnitPlatform() }
+tasks.named('jar') { manifest { attributes('Implementation-Version': project.version) } }
 tasks.named('processResources') {
+    def metadata = [version: project.version, minecraft: minecraft_version, loader: fabric_loader_version,
+                    ldlib2: ldlib2_version, jei: jei_version]
+    inputs.properties metadata
+    filesMatching('fabric.mod.json') { expand(metadata) }
     from(rootProject.file('LICENSE')) { into('META-INF') }
 }
-tasks.register('prepareUiFixtures', Copy) {
-    from('qa')
-    from('examples')
-    into('run')
+if (uiTest.isPresent()) {
+    def prepareUiFixtures = tasks.register('prepareUiFixtures', Copy) {
+        from('qa', 'examples', 'src/test/fixtures')
+        into(clientDirectory)
+    }
+    tasks.named('runClient') { dependsOn(prepareUiFixtures) }
 }
-if (providers.gradleProperty('uiTest').isPresent()) {
-    tasks.named('runClient') { dependsOn('prepareUiFixtures') }
+if (testPackagedMod) {
+    def installPackagedMod = tasks.register('installPackagedMod', Copy) {
+        from(tasks.named('jar'))
+        into(file(clientDirectory + '/mods'))
+    }
+    tasks.named('runClient') {
+        dependsOn(installPackagedMod)
+        classpath = classpath.filter { !sourceSets.main.output.files.contains(it) }
+    }
 }

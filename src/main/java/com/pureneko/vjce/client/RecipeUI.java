@@ -17,7 +17,7 @@ import java.util.*;
 
 public final class RecipeUI {
     private RecipeUI() {}
-    public static final net.minecraft.resources.ResourceLocation CANVAS_STYLES = net.minecraft.resources.ResourceLocation.parse("vjce:lss/recipe.lss");
+    public static final net.minecraft.resources.Identifier CANVAS_STYLES = net.minecraft.resources.Identifier.parse("vjce:lss/recipe.lss");
     public static UITemplate canvasTemplate(UITemplate template) {
         var styles = template.getStylesheets();
         if (!styles.contains(com.lowdragmc.lowdraglib2.gui.ui.style.StylesheetManager.MC)) styles.addFirst(com.lowdragmc.lowdraglib2.gui.ui.style.StylesheetManager.MC);
@@ -25,7 +25,7 @@ public final class RecipeUI {
         return template;
     }
     public static UITemplate savedTemplate(CategoryDocument document) {
-        try { return canvasTemplate(UITemplate.CODEC.parse(NbtOps.INSTANCE, TagParser.parseTag(document.layout)).getOrThrow()); }
+        try { return canvasTemplate(UITemplate.CODEC.parse(NbtOps.INSTANCE, TagParser.parseCompoundFully(document.layout)).getOrThrow()); }
         catch (Exception e) { throw new IllegalArgumentException("Invalid layout for " + document.id, e); }
     }
     public static UITemplate template(CategoryDocument document, CategoryDocument.Recipe recipe) {
@@ -63,7 +63,7 @@ public final class RecipeUI {
             if (!field.icon.isBlank()) {
                 var icon = new UIElement().setId("icon_" + field.key);
                 icon.layout(l -> { l.positionType(TaffyPosition.ABSOLUTE); l.left(4); l.top(y); l.width(10); l.height(10); });
-                icon.style(s -> s.backgroundTexture(com.lowdragmc.lowdraglib2.gui.texture.SpriteTexture.of(net.minecraft.resources.ResourceLocation.parse(field.icon))));
+                icon.style(s -> s.backgroundTexture(com.lowdragmc.lowdraglib2.gui.texture.SpriteTexture.of(net.minecraft.resources.Identifier.parse(field.icon))));
                 label.layout(l -> l.left(16)); root.addChild(icon);
             }
             var bar = new ProgressBar(); bar.setId("bar_" + field.key);
@@ -172,6 +172,8 @@ public final class RecipeUI {
     private static void updateIngredient(UIElement element, ITypedIngredient<?> typed) {
         if (element instanceof IngredientSlot generic) generic.ingredient = typed;
         else if (element instanceof ItemSlot item) item.setValue(typed != null && typed.getIngredient() instanceof net.minecraft.world.item.ItemStack stack ? stack : net.minecraft.world.item.ItemStack.EMPTY, false);
-        else if (element instanceof FluidSlot fluid) fluid.setValue(typed != null && typed.getIngredient() instanceof net.neoforged.neoforge.fluids.FluidStack stack ? stack : net.neoforged.neoforge.fluids.FluidStack.EMPTY, false);
+        else if (element instanceof FluidSlot fluid) fluid.setValue(typed != null && typed.getIngredient() instanceof mezz.jei.api.fabric.ingredients.fluids.IJeiFluidIngredient stack
+                ? com.lowdragmc.lowdraglib2.compat.xei.JeiFluids.fromJei(stack)
+                : com.lowdragmc.lowdraglib2.compat.fluids.FluidStack.EMPTY, false);
     }
 }

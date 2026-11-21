@@ -29,7 +29,7 @@ final class SceneAssets {
         }return revision;
     }
     static void remember(SceneAssetResource type,IResourcePath path,CompoundTag value){
-        load();String id=value.getString("assetId");if(id.isBlank())return;
+        load();String id=value.getStringOr("assetId", "");if(id.isBlank())return;
         var key=type.getName()+":"+id;var next=path.getPathWithType();
         if(!next.equals(paths.put(key,next)))save();
     }
@@ -40,20 +40,20 @@ final class SceneAssets {
         save();changed();
     }
     static CompoundTag value(SceneAssetResource type,CompoundTag row){
-        load();var instance=type.getResourceInstance();String id=row.getString("resourceId");
-        String path=paths.getOrDefault(type.getName()+":"+id,row.getString("resource"));
+        load();var instance=type.getResourceInstance();String id=row.getStringOr("resourceId", "");
+        String path=paths.getOrDefault(type.getName()+":"+id,row.getStringOr("resource", ""));
         var value=instance.getResource(IResourcePath.parse(path));
-        if(value==null&&!id.isBlank())for(var entry:instance.listAllResources())if(id.equals(entry.getValue().getString("assetId"))){remember(type,entry.getKey(),entry.getValue());return entry.getValue();}
+        if(value==null&&!id.isBlank())for(var entry:instance.listAllResources())if(id.equals(entry.getValue().getStringOr("assetId", ""))){remember(type,entry.getKey(),entry.getValue());return entry.getValue();}
         return value;
     }
     static String displayName(SceneAssetResource type,CompoundTag row){
-        load();var path=IResourcePath.parse(paths.getOrDefault(type.getName()+":"+row.getString("resourceId"),row.getString("resource")));
-        if(path==null)return row.getString("resource");String name=path.getResourceName();return name.endsWith("."+type.getName())?name.substring(0,name.length()-type.getName().length()-1):name;
+        load();var path=IResourcePath.parse(paths.getOrDefault(type.getName()+":"+row.getStringOr("resourceId", ""),row.getStringOr("resource", "")));
+        if(path==null)return row.getStringOr("resource", "");String name=path.getResourceName();return name.endsWith("."+type.getName())?name.substring(0,name.length()-type.getName().length()-1):name;
     }
     static CompoundTag instance(Drop drop){
         var value=drop.type.getResourceInstance().getResource(drop.path);if(value==null)throw new IllegalArgumentException("Missing resource: "+drop.path.getResourceName());
         remember(drop.type,drop.path,value);var row=new CompoundTag();
-        row.putString("resource",drop.path.getPathWithType());row.putString("resourceId",value.getString("assetId"));
+        row.putString("resource",drop.path.getPathWithType());row.putString("resourceId",value.getStringOr("assetId", ""));
         row.putDouble("x",0);row.putDouble("y",0);row.putDouble("z",0);
         row.putFloat("yaw",0);row.putFloat("pitch",0);row.putFloat("roll",0);row.putFloat("scale",1);
         return row;
@@ -72,7 +72,7 @@ final class SceneAssets {
                 if(value==null){
                     effective=type.entity?SceneEntities.defaults("minecraft:block_display"):new CompoundTag();
                     var state=new CompoundTag();state.putString("Name","minecraft:red_stained_glass");
-                    if(type.entity)effective.getCompound("data").put("block_state",state);else{effective.put("state",state);effective.put("data",new CompoundTag());}
+                    if(type.entity)effective.getCompoundOrEmpty("data").put("block_state",state);else{effective.put("state",state);effective.put("data",new CompoundTag());}
                     effective.putString("missing",displayName(type,row));
                 }else effective=value.copy();
                 for(String key:List.of("x","y","z","yaw","pitch","roll","scale","pose","resource","resourceId"))if(row.contains(key))effective.put(key,row.get(key).copy());

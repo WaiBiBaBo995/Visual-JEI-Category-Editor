@@ -25,7 +25,7 @@ public final class DrawingPartsScenario implements UIScenario {
             var point = ElementBounds.of(fragment).center();
             c.input().moveTo(point.x, point.y);
             var tooltip = fragment.collectHoverTooltips();
-            c.check("the editor supplies diagnostics without a base tooltip", tooltip != null && tooltip.tooltipTexts().stream()
+            c.check("the editor supplies diagnostics without a base tooltip", tooltip != null && tooltip.tooltips().stream().filter(Component.class::isInstance).map(Component.class::cast)
                     .anyMatch(text -> text.getString().equals(fragment.sourceLabel)));
         })
         .step("runtime discovery stays local to a recipe layout", DrawingPartsScenario::runtimeDiscovery)
@@ -74,7 +74,7 @@ public final class DrawingPartsScenario implements UIScenario {
             context.check("legacy diagnostics alone allow parent tooltip lookup", fragment.collectHoverTooltips() == null);
             fragment.style(style -> style.tooltips(label, "vjce.native.fragment.tip", "QA custom tooltip"));
             first.ui.init(document.width, document.height);
-            var tooltip = fragment.collectHoverTooltips().tooltipTexts().stream().map(Component::getString).toList();
+            var tooltip = fragment.collectHoverTooltips().tooltips().stream().filter(Component.class::isInstance).map(Component.class::cast).map(Component::getString).toList();
             context.check("legacy editor diagnostics are filtered while custom tooltip survives", tooltip.equals(List.of("QA custom tooltip")));
             var second = new NativeSession(original, raw, document, data, focus);
             try {
@@ -89,10 +89,10 @@ public final class DrawingPartsScenario implements UIScenario {
         var actual=(mezz.jei.api.gui.IRecipeLayoutDrawable)manager.createRecipeLayoutDrawable(new CapturedCategory(original,doc),raw,focus).orElseThrow();((com.pureneko.vjce.mixin.RecipeLayoutAccess)actual).vjce$createExtras();
         return new Screen(Component.literal("Generic drawing")){
             @Override public void tick(){actual.tick();}
-            @Override public void render(GuiGraphics g,int x,int y,float partial){g.fill(0,0,width,height,0xff444444);actual.setPosition(100,90);actual.drawRecipe(g,0,0);g.drawString(font,"Saved generic fragments: grouped, moved, rotated, edited text",50,40,0xffffffff,false);}
+            @Override public void extractRenderState(GuiGraphicsExtractor g,int x,int y,float partial){g.fill(0,0,width,height,0xff444444);actual.setPosition(100,90);actual.drawRecipe(g,0,0);g.text(font,"Saved generic fragments: grouped, moved, rotated, edited text",50,40,0xffffffff,false);}
         };
     }
-    private static void open(ScenarioBuilder s,String id){s.waitUntil("JEI ready",c->VjceJeiPlugin.runtime!=null).openModularUI(id,c->{c.put("mek",net.neoforged.fml.ModList.get().isLoaded("mekanism"));c.put("create",net.neoforged.fml.ModList.get().isLoaded("create"));String target=VjceJeiPlugin.originals.containsKey(id)?id:"vjce_qa_a:shared";var p=VjceEditor.projectForCategory(target);var w=new EditorWindow(VjceEditor::new);w.getCurrentEditor().loadProject(p,null);c.put("p",p);return new ModularUI(UI.of(w),c.player());}).awaitModularUI();}
+    private static void open(ScenarioBuilder s,String id){s.waitUntil("JEI ready",c->VjceJeiPlugin.runtime!=null).openModularUI(id,c->{c.put("mek",com.lowdragmc.lowdraglib2.Platform.isModLoaded("mekanism"));c.put("create",com.lowdragmc.lowdraglib2.Platform.isModLoaded("create"));String target=VjceJeiPlugin.originals.containsKey(id)?id:"vjce_qa_a:shared";var p=VjceEditor.projectForCategory(target);var w=new EditorWindow(VjceEditor::new);w.getCurrentEditor().loadProject(p,null);c.put("p",p);return new ModularUI(UI.of(w),c.player());}).awaitModularUI();}
     private static VjceProject p(TestContext c){return c.get("p");}
     private static List<NativePartElement> parts(TestContext c){return p(c).layoutView.getCurrentUI().rootElement.select("*").filter(NativePartElement.class::isInstance).map(NativePartElement.class::cast).toList();}
 }

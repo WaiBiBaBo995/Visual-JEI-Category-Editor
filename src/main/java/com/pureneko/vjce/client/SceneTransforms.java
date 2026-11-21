@@ -8,9 +8,14 @@ import net.minecraft.world.phys.AABB;
 import org.joml.*;
 
 final class SceneTransforms {
-    static float scale(CompoundTag row){return row.contains("scale")?row.getFloat("scale"):1;}
+    static float scale(CompoundTag row){return row.contains("scale")?row.getFloatOr("scale", 0):1;}
+    static boolean hasBlockTransform(CompoundTag row) {
+        return scale(row) != 1 || row.getFloatOr("yaw", 0) != 0
+                || row.getFloatOr("pitch", 0) != 0 || row.getFloatOr("roll", 0) != 0;
+    }
+
     static void block(PoseStack pose,CompoundTag row){
-        float scale=scale(row),yaw=row.getFloat("yaw"),pitch=row.getFloat("pitch"),roll=row.getFloat("roll");
+        float scale=scale(row),yaw=row.getFloatOr("yaw", 0),pitch=row.getFloatOr("pitch", 0),roll=row.getFloatOr("roll", 0);
         if(!Float.isFinite(scale)||scale<.05f||scale>16||!Float.isFinite(yaw)||!Float.isFinite(pitch)||!Float.isFinite(roll))throw new IllegalArgumentException("Invalid scene transform");
         if(scale==1&&yaw==0&&pitch==0&&roll==0)return;
         pose.translate(.5,.5,.5);pose.mulPose(Axis.YP.rotationDegrees(yaw));pose.mulPose(Axis.XP.rotationDegrees(pitch));pose.mulPose(Axis.ZP.rotationDegrees(roll));pose.scale(scale,scale,scale);pose.translate(-.5,-.5,-.5);

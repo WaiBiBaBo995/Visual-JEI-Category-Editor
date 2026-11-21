@@ -107,7 +107,7 @@ public final class CanvasEditorScenario implements UIScenario {
 
     private static void testSettingsMigration(TestContext ctx) {
         try {
-            var file = net.neoforged.fml.loading.FMLPaths.GAMEDIR.get().resolve("vjce-ui-test-settings.json");
+            var file = net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("vjce-ui-test-settings.json");
             Files.writeString(file, "{\"ldlib2:appearance\":{\"stylesheet\":\"ldlib2:lss/mc\",\"windowSize\":-1,\"editorWindowX\":77,\"editorWindowY\":88,\"editorWindowWidth\":600,\"editorWindowHeight\":400}}");
             var settings = new VjceEditorSettings(ctx.get("editor"), file.toFile());
             settings.registerSettings(new AppearanceSettings(), AppearanceSettings.CODEC); settings.loadAllSettingsFromFile();
